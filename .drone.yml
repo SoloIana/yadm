@@ -1,0 +1,53 @@
+---
+kind: pipeline
+type: kubernetes
+name: release
+
+trigger:
+  event:
+  - push
+  branch:
+    include:
+    - master
+
+services:
+  - name: mongo
+    image: mongo:6.0
+    ports:
+      - 27017
+
+steps:
+  - name: setup
+    image: python:3.9
+    commands:
+      - pip install --upgrade pip setuptools wheel
+      - pip install build twine
+      - pip install '.[asyncio,test]'
+
+  - name: test
+    image: python:3.9
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+    commands:
+      - pytest -v --cov=yadm --cov-report=term-missing
+
+  - name: coverage
+    image: python:3.9
+    commands:
+      - pip install coveralls
+      - coveralls
+
+  - name: build
+    image: python:3.9
+    commands:
+      - python -m build --sdist --wheel --outdir dist/
+
+  - name: publish
+    image: python:3.9
+    environment:
+      DEVPI_SERVER: http://devpi.drone
+    commands:
+      - pip install devpi-client
+      - devpi use $DEVPI_SERVER
+      - devpi login --password='' --debug --verbose root
+      - devpi upload --from-dir dist/
