@@ -34,7 +34,7 @@ steps:
   - name: publish
     image: python:3.9
     environment:
-      DEVPI_SERVER: http://devpi.drone
+      DEVPI_SERVER: http://devpi.drone/root/mirror
     commands:
       - pip install devpi-client
       - devpi use $DEVPI_SERVER
