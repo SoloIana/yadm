@@ -21,7 +21,7 @@ steps:
     image: python:3.9
     commands:
       - pip install --upgrade pip setuptools wheel
-      - pip install build twine
+      - pip install build twine pytest
       - pip install '.[asyncio,test]'
 
   - name: test
