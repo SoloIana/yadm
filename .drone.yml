@@ -17,18 +17,12 @@ services:
       - 27017
 
 steps:
-  - name: setup
-    image: python:3.9
-    commands:
-      - pip install --upgrade pip setuptools wheel
-      - pip install build twine pytest
-      - pip install '.[asyncio,test]'
-
   - name: test
     image: python:3.9
     environment:
       MONGO_URI: mongodb://mongo:27017
     commands:
+      - pip install '.[asyncio,test]' pytest
       - pytest -v --cov=yadm --cov-report=term-missing
 
   - name: coverage
@@ -40,6 +34,7 @@ steps:
   - name: build
     image: python:3.9
     commands:
+      - pip install '.[asyncio,test]' build
       - python -m build --sdist --wheel --outdir dist/
 
   - name: publish
