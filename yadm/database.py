@@ -39,7 +39,7 @@ RPS = pymongo.read_preferences
 
 
 class BaseDatabase:  # pragma: no cover
-    aio = None
+    aio: bool = False
 
     def __init__(self, client, name, **database_params):
         self.client = client

@@ -2,8 +2,10 @@
 Functions for serialize and deserialize data.
 """
 
+from __future__ import annotations
+
 from collections import defaultdict
-from typing import Any, Union, Optional, Container, Iterable, Dict
+from typing import Any, Collection, Dict, Iterable, Optional, Union
 
 from yadm.documents import MetaDocument, BaseDocument
 from yadm.document_item import DocumentItemMixin
@@ -17,10 +19,12 @@ LOOKUPS_KEY = '__yadm_lookups__'
 TRaw = Dict[str, Any]
 
 
-def to_mongo(document: BaseDocument,
-             exclude: Optional[Container[str]] = None,
-             include: Optional[Container[str]] = None,
-             skip_not_loaded: bool = False) -> TRaw:
+def to_mongo(
+    document: BaseDocument,
+    exclude: Optional[Collection[str]] = None,
+    include: Optional[Collection[str]] = None,
+    skip_not_loaded: bool = False,
+) -> TRaw:
     """ Serialize document to MongoDB data.
 
     1. Lookup in exclude;

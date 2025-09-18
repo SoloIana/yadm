@@ -325,17 +325,17 @@ class BaseQuerySet:
         """
         return self.copy(comment=comment)
 
-    def sort(self, *sort: Tuple[Tuple[str, int]]) -> 'BaseQuerySet':
+    def sort(self, *sort_items: Tuple[str, int]) -> 'BaseQuerySet':
         """ Return queryset with sorting.
 
             qs = qs.sort(('field_1', 1), ('field_2', -1))
         """
-        sort = list(sort)
+        sort_list = list(sort_items)
 
         if self._sort is None:
-            return self.copy(sort=sort)
+            return self.copy(sort=sort_list)
         else:
-            return self.copy(sort=self._sort + sort)
+            return self.copy(sort=self._sort + sort_list)
 
     def lookup(self, *fields):
         items = set()

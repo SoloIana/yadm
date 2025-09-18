@@ -1,5 +1,4 @@
-"""
-Work with references.
+"""Work with references.
 
 .. code-block:: python
 
@@ -31,6 +30,10 @@ Or with asyncio:
     assert doc.rdoc == rdoc.id
 
 """
+
+from __future__ import annotations
+from typing import Any, Optional, Type
+
 from bson import ObjectId
 
 from yadm.common import EnclosedDocDescriptor
@@ -79,7 +82,7 @@ class ReferenceField(Field):
     descriptor_class = ReferenceFieldDescriptor
     reference_document_class = EnclosedDocDescriptor('reference')
 
-    def __init__(self, reference_document_class, **kwargs):
+    def __init__(self, reference_document_class: Type[Document], **kwargs: Any):
         super().__init__(**kwargs)
         self.reference_document_class = reference_document_class
 
@@ -176,18 +179,21 @@ class ReferenceField(Field):
 
 
 class Reference(ObjectId):
-    """ Reference object.
+    """Reference object.
 
     This is awaitable:
 
         doc = await doc.reference
     """
-    document = None
 
-    def __init__(self,
-                 _id: ObjectId,
-                 parent: DocumentItemMixin,
-                 document_class):
+    document: Optional[Document] = None
+
+    def __init__(
+        self,
+        _id: ObjectId,
+        parent: DocumentItemMixin,
+        document_class: Type[Document],
+    ) -> None:
         super().__init__(_id)
         self.parent = parent
         self.db = parent.__db__
@@ -202,9 +208,13 @@ class Reference(ObjectId):
     def __await__(self):
         return self.get().__await__()
 
-    async def get(self, force: bool = False):
+    async def get(self, force: bool = False) -> Document:
+        if self.db is None:
+            raise NotBindingToDatabase((self.parent, self, self))
+
         if self.document is None or force:
-            self.document = await self.db(self.document_class).find_one(self)
+            qs = self.db(self.document_class)
+            self.document = await qs.find_one(self)
             if self.document is None:  # pragma: no cover
                 self.document = await self.db.get_document(self.document_class, self)
 

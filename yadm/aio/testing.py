@@ -1,33 +1,44 @@
+from __future__ import annotations
+
 from collections import Counter
-from types import GeneratorType, CoroutineType
+from types import CoroutineType, GeneratorType
+from typing import Any, Optional, Type, TypeVar, cast
 
 import pymongo
 from faker import Faker
 
 from yadm.documents import BaseDocument, Document, EmbeddedDocument
-from yadm.markers import AttributeNotSet
+from yadm.markers import AttributeNotSet, Marker
 from yadm.testing import DEFAULT_DEPTH
 
 
-async def aio_create_fake(__document_class__,
-                          __db__=None,
-                          __faker__=None,
-                          *,
-                          __parent__=None,
-                          __name__=None,
-                          __depth__=DEFAULT_DEPTH,
-                          __write_concern__=pymongo.WriteConcern(w='majority'),
-                          **values):
+TDocument = TypeVar('TDocument', bound=BaseDocument)
+
+
+COUNTER: Counter[Any] = Counter()
+
+
+async def aio_create_fake(
+    __document_class__: Type[TDocument],
+    __db__: Optional[Any] = None,
+    __faker__: Optional[Faker] = None,
+    *,
+    __parent__: Optional[BaseDocument] = None,
+    __name__: Optional[str] = None,
+    __depth__: int = DEFAULT_DEPTH,
+    __write_concern__: pymongo.write_concern.WriteConcern = pymongo.WriteConcern(w='majority'),
+    **values: Any,
+) -> TDocument | Type[Marker]:
     if not issubclass(__document_class__, BaseDocument):  # pragma: no cover
         raise TypeError("only BaseDocument subclasses is allowed")
 
-    aio_create_fake.counter[__document_class__] += 1
+    COUNTER[__document_class__] += 1
 
     if __depth__ < 0:
         return AttributeNotSet
 
     if __faker__ is None:
-        aio_create_fake.counter['__without_faker__'] += 1
+        COUNTER['__without_faker__'] += 1
         __faker__ = Faker()
 
     document = __document_class__()
@@ -92,4 +103,4 @@ async def aio_create_fake(__document_class__,
     return document
 
 
-aio_create_fake.counter = Counter()
+cast(Any, aio_create_fake).counter = COUNTER

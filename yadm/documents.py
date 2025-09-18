@@ -1,17 +1,7 @@
-"""
-Basic documents classes for build models.
+"""Document abstractions used by the ORM."""
+from __future__ import annotations
 
-    class User(Document):
-        __collection__ = 'users'
-
-        first_name = fields.StringField()
-        last_name = fields.StringField()
-        age = fields.IntegerField()
-
-
-All fields placed in :py:mod:`yadm.fields` package.
-"""
-from typing import Union, Optional, Any, Generator, Dict
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Generator, Optional, Union
 
 from bson import ObjectId
 from faker import Faker
@@ -20,6 +10,10 @@ from yadm.fields.base import Field
 from yadm.fields.simple import ObjectIdField
 from yadm.document_item import DocumentItemMixin
 from yadm.log_items import BaseLog
+
+if TYPE_CHECKING:  # pragma: no cover - imported only for typing
+    from yadm.database import BaseDatabase
+    from yadm.queryset import QuerySet
 
 
 class DocumentLog(BaseLog):
@@ -30,7 +24,7 @@ class MetaDocument(type):
     """ Metaclass for documents.
     """
     def __init__(cls, name: str, bases: tuple, cls_dict: dict):  # noqa
-        cls.__fields__ = {}
+        cls.__fields__: Dict[str, Field] = {}
 
         for base in bases:
             if isinstance(base, MetaDocument):
@@ -54,9 +48,10 @@ class MetaDocument(type):
 class BaseDocument(metaclass=MetaDocument):
     """ Base class for all documents.
     """
-    __raw__: dict
-    __cache__: dict
-    __not_loaded__: frozenset = frozenset()
+    __fields__: ClassVar[Dict[str, Field]]
+    __raw__: Dict[str, Any]
+    __cache__: Dict[str, Any]
+    __not_loaded__: frozenset[str] = frozenset()
 
     def __init__(self,
                  *args,
@@ -127,16 +122,16 @@ class Document(BaseDocument):
     __default_projection__: Optional[Dict[str, Any]] = None
     __new_document__: bool = True
     __log__: DocumentLog
-    __db__: 'yadm.database.BaseDatabase'
-    __qs__: 'QuerySet' = None
+    __db__: Optional['BaseDatabase']
+    __qs__: Optional['QuerySet'] = None
 
-    __yadm_lookups__: dict
+    __yadm_lookups__: Dict[str, Any]
 
     _id = ObjectIdField()
 
     def __init__(self,
                  *args,
-                 __db__: Optional['yadm.database.BaseDatabase'] = None,
+                 __db__: Optional['BaseDatabase'] = None,
                  __new_document__: bool = True,
                  **kwargs):
         self.__db__ = __db__
@@ -187,4 +182,7 @@ class EmbeddedDocument(DocumentItemMixin, BaseDocument):
 
     @property
     def __new_document__(self) -> bool:  # pragma: no cover
-        return self.__document__.__new_document__
+        document = self.__document__
+        if document is None:
+            return False
+        return bool(getattr(document, '__new_document__', False))

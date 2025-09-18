@@ -1,29 +1,34 @@
-""" Fields for geo data.
+"""Fields for geo data.
 
 See: http://docs.mongodb.org/manual/applications/geospatial-indexes/
 
 GeoJSON: http://geojson.org/geojson-spec.html
-
 """
+
+from __future__ import annotations
+
 from collections.abc import Sequence
+from typing import Any, ClassVar, Dict, Iterable, Iterator, List, Optional, Type, TypeVar, Union, overload
 
 from yadm.documents import DocumentItemMixin
 from yadm.fields.base import Field, pass_null
 
 
-TYPES = []
+GeoType = TypeVar('GeoType', bound='GeoCoordinates')
+
+TYPES: List[Type['GeoCoordinates']] = []
 
 
-def _geo_type(type):
-    # class decorator for add geo types to TYPES
-    TYPES.append(type)
-    return type
+def _geo_type(type_: Type['GeoCoordinates']) -> Type['GeoCoordinates']:
+    """Class decorator that registers geo types for default configuration."""
+    TYPES.append(type_)
+    return type_
 
 
 class Geo(DocumentItemMixin):
     """ Base class for GeoJSON data.
     """
-    type = None
+    type: ClassVar[Optional[str]] = None
 
 
 class GeoCoordinates(Geo):
@@ -38,6 +43,10 @@ class GeoCoordinates(Geo):
             'coordinates': self.get_coordinates(),
         }
 
+    @classmethod
+    def from_mongo(cls: Type['GeoCoordinates'], data: Dict[str, Any]) -> 'GeoCoordinates':
+        raise NotImplementedError('from_mongo must be implemented')
+
 
 @_geo_type
 class Point(GeoCoordinates):
@@ -47,18 +56,18 @@ class Point(GeoCoordinates):
     """
     type = 'Point'
 
-    def __init__(self, longitude, latitude):
+    def __init__(self, longitude: float, latitude: float):
         self.longitude = longitude
         self.latitude = latitude
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> float:
         return (self.longitude, self.latitude)[idx]
 
-    def get_coordinates(self):
+    def get_coordinates(self) -> List[float]:
         return [self.longitude, self.latitude]
 
     @classmethod
-    def from_mongo(cls, data):
+    def from_mongo(cls: Type['Point'], data: Dict[str, Any]) -> 'Point':
         try:
             coordinates = data['coordinates']
         except KeyError:  # pragma: no cover
@@ -73,52 +82,60 @@ class Point(GeoCoordinates):
 
 
 @_geo_type
-class MultiPoint(GeoCoordinates, Sequence):
+class MultiPoint(GeoCoordinates, Sequence[Point]):
     """ Class for GeoJSON MultiPoint objects.
 
     See: http://geojson.org/geojson-spec.html#id5
     """
     type = 'MultiPoint'
 
-    def __init__(self, points):
-        self._points = points
+    def __init__(self, points: Iterable[Point]):
+        self._points = list(points)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._points)
 
-    def __iter__(self):  # pragma: no cover
+    def __iter__(self) -> Iterator[Point]:  # pragma: no cover
         return iter(self._points)
 
-    def __getitem__(self, item):
+    @overload
+    def __getitem__(self, item: int) -> Point:
+        ...
+
+    @overload
+    def __getitem__(self, item: slice) -> List[Point]:
+        ...
+
+    def __getitem__(self, item: Union[int, slice]) -> Union[Point, List[Point]]:
         return self._points[item]
 
-    def get_coordinates(self):
+    def get_coordinates(self) -> List[List[float]]:
         return [p.to_mongo()['coordinates'] for p in self._points]
 
     @classmethod
-    def from_mongo(cls, data):
+    def from_mongo(cls: Type['MultiPoint'], data: Dict[str, Any]) -> 'MultiPoint':
         try:
             coordinates = data['coordinates']
         except KeyError:  # pragma: no cover
             raise ValueError('coordinates not found in data: "{!r}"'.format(data))
 
-        return cls([Point(*c) for c in coordinates])
+        return cls(Point(*c) for c in coordinates)
 
 
 class GeoField(Field):
     """ Base field for GeoJSON objects.
     """
-    def __init__(self, types=TYPES, **kwargs):
+    def __init__(self, types: Iterable[Type[GeoCoordinates]] = TYPES, **kwargs: Any):
         super().__init__(**kwargs)
-        self.types = types
-        self.types_dict = {t.type: t for t in types}
+        self.types = list(types)
+        self.types_dict: Dict[str, Type[GeoCoordinates]] = {t.type: t for t in self.types if t.type is not None}
 
     @pass_null
-    def to_mongo(self, document, geo):
+    def to_mongo(self, document: DocumentItemMixin, geo: GeoCoordinates) -> Dict[str, Any]:
         return geo.to_mongo()
 
     @pass_null
-    def from_mongo(self, document, data):
+    def from_mongo(self, document: DocumentItemMixin, data: Dict[str, Any]) -> GeoCoordinates:
         geo_type = self.types_dict.get(data['type'])
 
         if geo_type is None:  # pragma: no cover
@@ -130,19 +147,23 @@ class GeoField(Field):
 class GeoOneTypeField(GeoField):
     """ Base field for GeoJSON objects with one acceptable type.
     """
-    type = None
+    type: ClassVar[Type[GeoCoordinates]]
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
 
         if self.type is None:  # pragma: no cover
             raise NotImplementedError('attribute "type" must be implemented')
 
+        type_name = self.type.type
+        if type_name is None:  # pragma: no cover
+            raise NotImplementedError('attribute "type.type" must be defined')
+
         self.types = [self.type]
-        self.types_dict = {self.type.type: self.type}
+        self.types_dict = {type_name: self.type}
 
     @pass_null
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentItemMixin, value: Any) -> GeoCoordinates:
         if isinstance(value, self.type):
             return value
         elif isinstance(value, dict):
@@ -157,7 +178,7 @@ class GeoOneTypeField(GeoField):
 class PointField(GeoOneTypeField):
     """ Field for Point.
     """
-    type = Point
+    type: ClassVar[Type[GeoCoordinates]] = Point
 
     def get_fake(self, document, faker, depth):  # pragma: no cover
         return self._get_fake_point(faker)
@@ -166,7 +187,7 @@ class PointField(GeoOneTypeField):
 class MultiPointField(GeoOneTypeField):
     """ Field for MultiPoint.
     """
-    type = MultiPoint
+    type: ClassVar[Type[GeoCoordinates]] = MultiPoint
 
     def get_fake(self, document, faker, depth):  # pragma: no cover
         return [self._get_fake_point(faker) for _ in range(4)]

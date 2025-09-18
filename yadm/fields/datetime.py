@@ -1,7 +1,7 @@
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 
-import dateutil.parser
-import pytz
+import dateutil.parser  # type: ignore[import-untyped]
+import pytz  # type: ignore[import-untyped]
 
 from yadm.fields.base import DefaultMixin, Field, pass_null
 

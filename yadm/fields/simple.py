@@ -1,7 +1,8 @@
-"""
-Fields for basic data types.
-"""
+"""Fields for basic scalar data types."""
+from __future__ import annotations
+
 from random import choice
+from typing import Any, ClassVar, Optional, Sequence, Type
 
 from bson import ObjectId
 
@@ -12,7 +13,7 @@ from yadm.markers import AttributeNotSet
 class StaticField(Field):
     """ Field for static data.
     """
-    def __init__(self, data):
+    def __init__(self, data: Any):
         self.data = data
 
     def get_default(self, document):
@@ -56,14 +57,19 @@ class SimpleField(DefaultMixin, Field):
     :param default: default value
     :param set choices: set of possible values
     """
-    type = None
-    choices = None
+    type: ClassVar[Optional[Type[Any]]] = None
 
-    def __init__(self, default=AttributeNotSet, *, choices=None, **kwargs):
+    def __init__(
+        self,
+        default: Any = AttributeNotSet,
+        *,
+        choices: Optional[Sequence[Any]] = None,
+        **kwargs: Any,
+    ) -> None:
         if self.type is None:  # pragma: no cover
             raise NotImplementedError("Attribute 'type' is not implemented!")
 
-        self.choices = choices
+        self.choices: Optional[Sequence[Any]] = choices
 
         kwargs['default'] = default
         super().__init__(**kwargs)
@@ -82,7 +88,9 @@ class SimpleField(DefaultMixin, Field):
         if value is AttributeNotSet:
             return AttributeNotSet
 
-        elif not isinstance(value, self.type):
+        assert self.type is not None
+
+        if not isinstance(value, self.type):
             value = self.type(value)
 
         self._check_choices(value)
@@ -93,7 +101,9 @@ class SimpleField(DefaultMixin, Field):
         if value is AttributeNotSet:
             return AttributeNotSet  # pragma: no cover
 
-        elif not isinstance(value, self.type):
+        assert self.type is not None
+
+        if not isinstance(value, self.type):
             value = self.type(value)
 
         return value
