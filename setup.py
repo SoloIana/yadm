@@ -44,4 +44,5 @@ setup(
     ],
 
     packages=['yadm', 'yadm.aio', 'yadm.fields', 'yadm.fields.money'],
+    package_data={'yadm': ['py.typed']},
 )
