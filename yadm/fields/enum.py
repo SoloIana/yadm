@@ -1,22 +1,32 @@
+from __future__ import annotations
+
+from enum import Enum
+from typing import Mapping, Optional, Sequence, TypeVar
+
 from yadm.fields.base import pass_null
 from yadm.fields.simple import SimpleField
 from yadm.markers import AttributeNotSet
 
 
-class EnumField(SimpleField):
+E = TypeVar("E", bound=Enum)
+
+
+class EnumField(SimpleField[E]):
     """ Field for enum.Enum .
     """
-    def __init__(self, enum, **kwargs):
+    def __init__(self, enum: type[E], **kwargs):
         self.type = enum
         super().__init__(**kwargs)
 
     def copy(self):
-        return self.__class__(self.type,
-                              smart_null=self.smart_null,
-                              default=self.default)
+        return self.__class__(
+            self.type,
+            smart_null=self.smart_null,
+            default=self.default,
+        )
 
     @pass_null
-    def to_mongo(self, document, value):
+    def to_mongo(self, document, value: E):
         return value.value
 
 
@@ -38,12 +48,18 @@ class EnumStateInvalidInitial(Exception):
         super().__init__(self.message)
 
 
-class EnumStateField(EnumField):
+class EnumStateField(EnumField[E]):
     """ Simple state machine with states are enum.Enum .
     """
-    rules = None
+    rules: Optional[Mapping[E, Sequence[E]]] = None
 
-    def __init__(self, enum, rules=None, start=AttributeNotSet, **kwargs):
+    def __init__(
+        self,
+        enum: type[E],
+        rules: Optional[Mapping[E, Sequence[E]]] = None,
+        start: E | type[AttributeNotSet] = AttributeNotSet,
+        **kwargs,
+    ):
         if 'default' not in kwargs:
             kwargs = {'default': start, **kwargs}
 
@@ -56,9 +72,12 @@ class EnumStateField(EnumField):
             raise ValueError("Rules list is empty")
 
     def copy(self):
-        return self.__class__(self.type, self.rules,
-                              smart_null=self.smart_null,
-                              default=self.default)
+        return self.__class__(
+            self.type,
+            self.rules,
+            smart_null=self.smart_null,
+            default=self.default,
+        )
 
     @pass_null
     def prepare_value(self, document, value):
