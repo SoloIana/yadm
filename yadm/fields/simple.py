@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from random import choice
-from typing import Any, ClassVar, Generic, Optional, Sequence, Type, TypeVar
+from typing import Any, Generic, Optional, Sequence, TypeVar
 
 from bson import ObjectId
 
@@ -60,7 +60,7 @@ class SimpleField(DefaultMixin, Field[T], Generic[T]):
     :param default: default value
     :param set choices: set of possible values
     """
-    type: ClassVar[Optional[Type[T]]] = None
+    type: type[Any] | None = None
 
     def __init__(
         self,

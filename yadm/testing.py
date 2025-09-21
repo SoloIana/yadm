@@ -8,6 +8,7 @@ from typing import Any, Optional, Type, TypeVar, cast
 import pymongo
 from faker import Faker
 
+from yadm.database import BaseDatabase
 from yadm.documents import BaseDocument, Document, EmbeddedDocument
 from yadm.markers import AttributeNotSet, Marker
 
@@ -23,7 +24,7 @@ DEFAULT_DEPTH = 4  # <=450
 
 def create_fake(
     __document_class__: Type[TDocument],
-    __db__: Optional[pymongo.database.Database] = None,
+    __db__: Optional[BaseDatabase] = None,
     __faker__: Optional[Faker] = None,
     *,
     __parent__: Optional[BaseDocument] = None,
@@ -36,7 +37,7 @@ def create_fake(
 
     :param yadm.documents.BaseDocument __document_class__: document class
         for new instance
-    :param yadm.database.Database __db__: database instance
+    :param yadm.database.BaseDatabase __db__: database instance
         if specified, document and all references will be saved to database
     :param Faker __faker__: faker instance, create if not specified
     :param yadm.documents.BaseDocument __parent__: parent document

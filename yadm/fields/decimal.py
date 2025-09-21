@@ -2,13 +2,12 @@
 """
 from decimal import Decimal, getcontext, Context
 from functools import reduce
-from typing import Union, Optional, Iterable
+from typing import Iterable, Optional, Union
 
 
 from bson import Decimal128
 
-from yadm.documents import BaseDocument
-from yadm.fields.base import Field, DefaultMixin, pass_null
+from yadm.fields.base import DocumentLike, Field, DefaultMixin, pass_null
 
 
 TDecimalable = Union[Decimal, Decimal128, str, int]
@@ -39,7 +38,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
     def context(self, context: Optional[Context]):
         self._context = context
 
-    def get_fake(self, document: BaseDocument, faker, depth):  # pragma: no cover
+    def get_fake(self, document: DocumentLike, faker, depth):  # pragma: no cover
         return faker.pydecimal()
 
     @staticmethod
@@ -51,7 +50,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
         return reduce(lambda cur, acc: cur * 10 + acc, digits, 0)
 
     @pass_null
-    def prepare_value(self, document: BaseDocument,
+    def prepare_value(self, document: DocumentLike,
                       value: TDecimalable) -> Decimal:
         """ Cast value to :class:`decimal.Decimal`.
         """
@@ -63,7 +62,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
             raise TypeError(value)
 
     @pass_null
-    def to_mongo(self, document: BaseDocument,
+    def to_mongo(self, document: DocumentLike,
                  value: Decimal) -> dict:
         sign, digits, exp = value.as_tuple()
         integer = self._integer_from_digits(digits)
@@ -73,7 +72,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
         }
 
     @pass_null
-    def from_mongo(self, document: BaseDocument,
+    def from_mongo(self, document: DocumentLike,
                    value: TDecimalInMongo) -> Decimal:
         if isinstance(value, dict):
             sign = value['i'] < 0  # False - positive, True - negative
@@ -103,7 +102,7 @@ class Decimal128Field(DefaultMixin, Field[Decimal128]):
     @pass_null
     def prepare_value(
         self,
-        document: BaseDocument,
+        document: DocumentLike,
         value: TDecimal128able,
     ) -> Decimal128:
         if isinstance(value, Decimal128):

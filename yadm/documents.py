@@ -1,7 +1,7 @@
 """Document abstractions used by the ORM."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Generator, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Generator, Optional, Union, cast
 
 from bson import ObjectId
 from faker import Faker
@@ -38,7 +38,7 @@ class MetaDocument(type):
                                 cls.__name__, attr))
 
             if isinstance(field, Field):
-                field.contribute_to_class(cls, attr)
+                field.contribute_to_class(cast(type['BaseDocument'], cls), attr)
             else:
                 setattr(cls, attr, field)
 
@@ -52,6 +52,7 @@ class BaseDocument(metaclass=MetaDocument):
     __raw__: Dict[str, Any]
     __cache__: Dict[str, Any]
     __not_loaded__: frozenset[str] = frozenset()
+    __log__: BaseLog
 
     def __init__(self,
                  *args,
@@ -75,6 +76,7 @@ class BaseDocument(metaclass=MetaDocument):
 
         self.__raw__ = {}
         self.__cache__ = {}
+        self.__log__ = BaseLog()
 
         for key, field in self.__fields__.items():
             if key in data:
@@ -144,13 +146,12 @@ class Document(BaseDocument):
         _id = getattr(self, '_id', '<new>')
         return '{}({})'.format(self.__class__.__name__, _id)
 
-    def __eq__(self, other: Union['Document', ObjectId]) -> bool:
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, Document):
             return self.id == other.id
-        elif isinstance(other, ObjectId):
+        if isinstance(other, ObjectId):
             return self.id == other
-        else:
-            return False
+        return False
 
     def __hash__(self) -> int:
         return hash(self.id)
