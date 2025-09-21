@@ -249,10 +249,11 @@ class Field(Generic[T]):
     def copy(self) -> "Field[Any]":  # pragma: no cover
         """ Return copy of field.
         """
-        return self.__class__(
-            item_field=self.item_field,
-            smart_null=self.smart_null,
-        )
+        kwargs: dict[str, Any] = {'smart_null': self.smart_null}
+        if hasattr(self, 'item_field'):
+            kwargs['item_field'] = getattr(self, 'item_field')
+
+        return self.__class__(**kwargs)  # type: ignore[call-arg]
 
     def get_default(self, document: DocumentLike):
         """ Return default value.

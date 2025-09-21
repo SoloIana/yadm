@@ -7,6 +7,7 @@ from typing import Any, Optional, Type, TypeVar, cast
 import pymongo
 from faker import Faker
 
+from yadm.database import BaseDatabase
 from yadm.documents import BaseDocument, Document, EmbeddedDocument
 from yadm.markers import AttributeNotSet, Marker
 from yadm.testing import DEFAULT_DEPTH
@@ -20,7 +21,7 @@ COUNTER: Counter[Any] = Counter()
 
 async def aio_create_fake(
     __document_class__: Type[TDocument],
-    __db__: Optional[Any] = None,
+    __db__: Optional[BaseDatabase] = None,
     __faker__: Optional[Faker] = None,
     *,
     __parent__: Optional[BaseDocument] = None,

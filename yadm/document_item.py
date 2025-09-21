@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, FrozenSet, Iterator, Optional, Union, cast
 
 from yadm.log_items import BaseLog, ChangeChild
 
@@ -35,7 +35,12 @@ class DocumentItemMixin:
     """
     __parent__: Optional[Union['DocumentItemMixin', 'BaseDocument']] = None
     __name__: Optional[Union[str, int]] = None
-    __log__: ItemLog
+    __log__: BaseLog
+
+    if TYPE_CHECKING:
+        __cache__: dict[str, Any]
+        __raw__: dict[str, Any]
+        __not_loaded__: FrozenSet[str]
 
     def __init__(self, *args, **kwargs):
         self.__log__ = ItemLog(self)

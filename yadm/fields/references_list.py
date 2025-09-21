@@ -40,7 +40,7 @@ from bson import ObjectId
 
 from yadm.documents import BaseDocument, Document, MetaDocument
 from yadm.document_item import DocumentItemMixin
-from yadm.fields.base import Field
+from yadm.fields.base import DocumentLike, Field
 from yadm.queryset import NotFoundBehavior
 
 
@@ -128,6 +128,13 @@ class ReferencesList(MutableSequence[Document], DocumentItemMixin):
             items=items,
         )
 
+    @staticmethod
+    def _extract_id(document: Document) -> ObjectId:
+        doc_id = document.id
+        if doc_id is None:
+            raise ValueError('Document must have an id')
+        return doc_id
+
     @overload
     def __getitem__(self, idx: int) -> Document:
         ...
@@ -152,7 +159,8 @@ class ReferencesList(MutableSequence[Document], DocumentItemMixin):
         self._check_resolved_and_rise()
         if isinstance(idx, slice):
             docs = list(document if isinstance(document, Iterable) else [document])
-            self._ids[idx] = [doc.id for doc in docs]
+            ids = [self._extract_id(doc) for doc in docs]
+            self._ids[idx] = ids
             self._documents[idx] = docs
             start_index = 0 if idx.start is None else idx.start
             for offset, doc in enumerate(docs):
@@ -161,7 +169,7 @@ class ReferencesList(MutableSequence[Document], DocumentItemMixin):
         else:
             if not isinstance(document, Document):
                 raise TypeError('document must be a Document instance')
-            self._ids[idx] = document.id
+            self._ids[idx] = self._extract_id(document)
             self._documents[idx] = document
             self.__log__.append(ReferencesListSetitem(index=idx, document=document))
 
@@ -213,13 +221,13 @@ class ReferencesList(MutableSequence[Document], DocumentItemMixin):
 
     def insert(self, idx: int, document: Document):
         self._check_resolved_and_rise()
-        self._ids.insert(idx, document.id)
+        self._ids.insert(idx, self._extract_id(document))
         self._documents.insert(idx, document)
         self.__log__.append(ReferencesListInsert(index=idx, document=document))
 
     def append(self, document: Document):
         self._check_resolved_and_rise()
-        self._ids.append(document.id)
+        self._ids.append(self._extract_id(document))
         self._documents.append(document)
         self.__log__.append(ReferencesListAppend(document=document))
 
@@ -279,7 +287,7 @@ class ReferencesListField(Field):
 
     def get_if_attribute_not_set(
         self,
-        document: Document,
+        document: DocumentLike,
     ) -> ReferencesList:  # pragma: no cover
         rl = ReferencesList(
             self._reference_document_class,
@@ -292,7 +300,7 @@ class ReferencesListField(Field):
         setattr(document, self.name, rl)
         return rl
 
-    def get_default(self, document: Document) -> ReferencesList:
+    def get_default(self, document: DocumentLike) -> ReferencesList:
         rl = ReferencesList(
             self._reference_document_class,
             [],
@@ -306,7 +314,7 @@ class ReferencesListField(Field):
 
     def prepare_value(
         self,
-        document: Document,
+        document: DocumentLike,
         value: Union[ReferencesList, List[Document]],
     ) -> ReferencesList:
         if isinstance(value, ReferencesList):
@@ -315,7 +323,7 @@ class ReferencesListField(Field):
             return value
 
         elif isinstance(value, list):
-            ids = [i.id for i in value]
+            ids = [ReferencesList._extract_id(i) for i in value]
             res = ReferencesList(
                 self._reference_document_class, ids,
                 field=self,
@@ -330,7 +338,7 @@ class ReferencesListField(Field):
 
     def from_mongo(
         self,
-        document: Document,
+        document: DocumentLike,
         value: List[ObjectId],
     ) -> ReferencesList:
         return ReferencesList(
@@ -340,6 +348,6 @@ class ReferencesListField(Field):
         )
 
     def to_mongo(self,
-                 document: Document,
+                 document: DocumentLike,
                  value: ReferencesList) -> List[ObjectId]:
         return value._ids

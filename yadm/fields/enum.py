@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Mapping, Optional, Sequence, TypeVar
+from typing import Container, Mapping, Optional, TypeVar
 
 from yadm.fields.base import pass_null
 from yadm.fields.simple import SimpleField
@@ -51,12 +51,12 @@ class EnumStateInvalidInitial(Exception):
 class EnumStateField(EnumField[E]):
     """ Simple state machine with states are enum.Enum .
     """
-    rules: Optional[Mapping[E, Sequence[E]]] = None
+    rules: Optional[Mapping[E, Container[E]]] = None
 
     def __init__(
         self,
         enum: type[E],
-        rules: Optional[Mapping[E, Sequence[E]]] = None,
+        rules: Optional[Mapping[E, Container[E]]] = None,
         start: E | type[AttributeNotSet] = AttributeNotSet,
         **kwargs,
     ):
@@ -89,8 +89,12 @@ class EnumStateField(EnumField[E]):
                 raise EnumStateInvalidInitial(new_value)
 
         else:
-            if (new_value != current_value and
-                    new_value not in self.rules.get(current_value, [])):
+            assert self.rules is not None
+            allowed = self.rules.get(current_value)
+            if (
+                new_value != current_value
+                and (allowed is None or new_value not in allowed)
+            ):
                 raise EnumStateSetError(current_value, new_value)
 
         return new_value
