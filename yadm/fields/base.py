@@ -1,12 +1,20 @@
-"""
-Base classes for build database fields.
-"""
+"""Base classes and descriptors used to build fields."""
+from __future__ import annotations
+
 import functools
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, Union, overload
 
 from yadm.exceptions import NotLoadedError
 from yadm.markers import AttributeNotSet
 from yadm.document_item import DocumentItemMixin
 from yadm.log_items import SetField, ChangeChild
+
+if TYPE_CHECKING:  # pragma: no cover - only used for typing
+    from yadm.documents import BaseDocument
+
+
+T = TypeVar("T")
+DocumentLike = Union["BaseDocument", DocumentItemMixin]
 
 
 def pass_null(method):
@@ -20,7 +28,7 @@ def pass_null(method):
     return wrapper
 
 
-class FieldDescriptor:
+class FieldDescriptor(Generic[T]):
     """ Base desctiptor for fields.
 
     .. py:attribute:: name
@@ -32,7 +40,7 @@ class FieldDescriptor:
     Field instance for this desctiptor
 
     """
-    def __init__(self, name, field):
+    def __init__(self, name: str, field: "Field[T]") -> None:
         self.name = name
         self.field = field
 
@@ -41,7 +49,19 @@ class FieldDescriptor:
         document_class_name = type(self.field.document_class).__name__
         return '<{} "{}.{}">'.format(class_name, document_class_name, self.name)
 
-    def __get__(self, instance, owner):
+    @overload
+    def __get__(self, instance: None, owner: type["BaseDocument"]) -> "Field[T]":
+        ...
+
+    @overload
+    def __get__(self, instance: DocumentLike, owner: type["BaseDocument"]) -> T:
+        ...
+
+    def __get__(
+        self,
+        instance: Optional[DocumentLike],
+        owner: type["BaseDocument"],
+    ) -> Union["Field[T]", T]:
         """ Get python value from document.
 
         1. Lookup in __cache__;
@@ -99,7 +119,7 @@ class FieldDescriptor:
         else:
             return self.field.get_if_attribute_not_set(instance)
 
-    def __set__(self, instance, value):
+    def __set__(self, instance: DocumentLike, value: T) -> None:
         """ Set value to document.
 
         1. Call Field.prepare_value for cast value;
@@ -153,14 +173,14 @@ class FieldDescriptor:
         else:
             raise TypeError("can't set field directly")  # pragma: no cover
 
-    def __delete__(self, instance):
+    def __delete__(self, instance: DocumentLike) -> None:
         """ Mark document's key as not set.
         """
         if not isinstance(instance, type):
             setattr(instance, self.name, AttributeNotSet)
 
 
-class Field:
+class Field(Generic[T]):
     """ Base field for all database fields.
 
     :param bool smart_null:
@@ -184,20 +204,39 @@ class Field:
         Name of field in document.
         Set in :py:meth:`contribute_to_class`.
     """
-    descriptor_class = FieldDescriptor
-    smart_null = False
-    document_class = None
-    name = None
+    descriptor_class: type[FieldDescriptor[Any]] = FieldDescriptor
+    smart_null: bool = False
+    document_class: Optional[type["BaseDocument"]] = None
+    name: Optional[str] = None
 
-    def __init__(self, smart_null=False):
+    def __init__(self, smart_null: bool = False) -> None:
         self.smart_null = smart_null
+
+    if TYPE_CHECKING:  # pragma: no cover - only for the type checker
+        @overload
+        def __get__(self, instance: None, owner: type["BaseDocument"]) -> FieldDescriptor[T]:
+            ...
+
+        @overload
+        def __get__(self, instance: DocumentLike, owner: type["BaseDocument"]) -> T:
+            ...
+
+        def __get__(
+            self,
+            instance: Optional[DocumentLike],
+            owner: type["BaseDocument"],
+        ) -> Union[FieldDescriptor[T], T]:
+            ...
+
+        def __set__(self, instance: DocumentLike, value: T) -> None:
+            ...
 
     def __repr__(self):
         class_name = type(self).__name__
         doc_class_name = self.document_class and self.document_class.__name__
         return '<{} "{}.{}">'.format(class_name, doc_class_name, self.name)
 
-    def contribute_to_class(self, document_class, name):
+    def contribute_to_class(self, document_class: type["BaseDocument"], name: str) -> None:
         """ Add field for document_class.
 
         :param MetaDocument document_class: document class for add
@@ -207,7 +246,7 @@ class Field:
         self.document_class.__fields__[name] = self
         setattr(document_class, name, self.descriptor_class(name, self))
 
-    def copy(self):  # pragma: no cover
+    def copy(self) -> "Field[Any]":  # pragma: no cover
         """ Return copy of field.
         """
         return self.__class__(
@@ -215,28 +254,28 @@ class Field:
             smart_null=self.smart_null,
         )
 
-    def get_default(self, document):
+    def get_default(self, document: DocumentLike):
         """ Return default value.
         """
         return AttributeNotSet
 
-    def get_if_not_loaded(self, document):
+    def get_if_not_loaded(self, document: DocumentLike):
         """ Call if field data marked as not loaded.
         """
         raise NotLoadedError(self, document)
 
-    def get_if_attribute_not_set(self, document):
+    def get_if_attribute_not_set(self, document: DocumentLike):
         """ Call if key not exist in document.
         """
         raise AttributeError("{!r} document has no attribute {!r}"
                              "".format(document.__class__.__name__, self.name))
 
-    def get_fake(self, document, faker, deep):  # pragma: no cover
+    def get_fake(self, document: DocumentLike, faker, deep):  # pragma: no cover
         """ Return fake data for testing.
         """
         return self.get_default(document)
 
-    def prepare_value(self, document, value):  # pragma: no cover
+    def prepare_value(self, document: DocumentLike, value):  # pragma: no cover
         """ The method is called when value is assigned for the attribute.
 
         :param BaseDocument document: document
@@ -249,7 +288,7 @@ class Field:
         """
         return value
 
-    def to_mongo(self, document, value):  # pragma: no cover
+    def to_mongo(self, document: DocumentLike, value):  # pragma: no cover
         """ Convert python value to mongo value.
 
         :param BaseDocument document: document
@@ -258,7 +297,7 @@ class Field:
         """
         return value
 
-    def from_mongo(self, document, value):  # pragma: no cover
+    def from_mongo(self, document: DocumentLike, value):  # pragma: no cover
         """ Convert mongo value to python value.
 
         :param BaseDocument document: document

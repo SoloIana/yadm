@@ -16,7 +16,7 @@ TDecimalInMongo = Union[Decimal, Decimal128, dict]
 TDecimal128able = Union[Decimal, Decimal128, str]
 
 
-class DecimalField(DefaultMixin, Field):
+class DecimalField(DefaultMixin, Field[Decimal]):
     """ Field for work with :class:`decimal.Decimal`.
 
     TODO: context in copy()
@@ -99,10 +99,13 @@ class DecimalField(DefaultMixin, Field):
             raise TypeError(value)
 
 
-class Decimal128Field(DefaultMixin, Field):
+class Decimal128Field(DefaultMixin, Field[Decimal128]):
     @pass_null
-    def prepare_value(self, document: BaseDocument,
-                      value: TDecimal128able) -> Decimal:
+    def prepare_value(
+        self,
+        document: BaseDocument,
+        value: TDecimal128able,
+    ) -> Decimal128:
         if isinstance(value, Decimal128):
             return value
         elif isinstance(value, (str, Decimal)):

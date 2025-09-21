@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from random import choice
-from typing import Any, ClassVar, Optional, Sequence, Type
+from typing import Any, ClassVar, Generic, Optional, Sequence, Type, TypeVar
 
 from bson import ObjectId
 
@@ -10,7 +10,10 @@ from yadm.fields.base import Field, DefaultMixin, pass_null
 from yadm.markers import AttributeNotSet
 
 
-class StaticField(Field):
+T = TypeVar("T")
+
+
+class StaticField(Field[Any]):
     """ Field for static data.
     """
     def __init__(self, data: Any):
@@ -51,13 +54,13 @@ class StaticField(Field):
             return self.data
 
 
-class SimpleField(DefaultMixin, Field):
+class SimpleField(DefaultMixin, Field[T], Generic[T]):
     """ Base field for simple types.
 
     :param default: default value
     :param set choices: set of possible values
     """
-    type: ClassVar[Optional[Type[Any]]] = None
+    type: ClassVar[Optional[Type[T]]] = None
 
     def __init__(
         self,
@@ -114,7 +117,7 @@ class SimpleField(DefaultMixin, Field):
                              "".format(value, self.choices))
 
 
-class ObjectIdField(SimpleField):
+class ObjectIdField(SimpleField[ObjectId]):
     """ Field for ObjectId.
 
     :param bool default_gen: generate default value if not set
@@ -139,7 +142,7 @@ class ObjectIdField(SimpleField):
         return self.__class__(default_gen=self.default_gen)
 
 
-class BooleanField(SimpleField):
+class BooleanField(SimpleField[bool]):
     """ Field for boolean values.
     """
     type = bool
@@ -148,7 +151,7 @@ class BooleanField(SimpleField):
         return faker.pybool()
 
 
-class IntegerField(SimpleField):
+class IntegerField(SimpleField[int]):
     """ Field for integer.
     """
     type = int
@@ -160,7 +163,7 @@ class IntegerField(SimpleField):
             return faker.pyint()
 
 
-class FloatField(SimpleField):
+class FloatField(SimpleField[float]):
     """ Field for float.
     """
     type = float
@@ -172,7 +175,7 @@ class FloatField(SimpleField):
             return faker.pyfloat()
 
 
-class StringField(SimpleField):
+class StringField(SimpleField[str]):
     """ Field for string.
     """
     type = str

@@ -6,7 +6,7 @@ import pytz  # type: ignore[import-untyped]
 from yadm.fields.base import DefaultMixin, Field, pass_null
 
 
-class DatetimeField(DefaultMixin, Field):
+class DatetimeField(DefaultMixin, Field[datetime]):
     """ Field for time stamp.
 
     :param bool auto_now: datetime.now as default
@@ -66,7 +66,7 @@ class DatetimeField(DefaultMixin, Field):
         return cls._fix_timezone(value)
 
 
-class TimedeltaField(DefaultMixin, Field):
+class TimedeltaField(DefaultMixin, Field[timedelta]):
     def get_fake(self, document, faker, depth):
         return faker.time_delta()
 
