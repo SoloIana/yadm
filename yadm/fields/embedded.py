@@ -22,8 +22,6 @@ from yadm.documents import EmbeddedDocument
 from yadm.markers import AttributeNotSet
 from yadm.fields.base import Field, pass_null
 from yadm.serialize import to_mongo, from_mongo
-from yadm.testing import create_fake
-from yadm.aio.testing import aio_create_fake
 
 
 class BaseEmbeddedDocumentField(Field):
@@ -103,6 +101,9 @@ class EmbeddedDocumentField(BaseEmbeddedDocumentField):
             return super().get_if_attribute_not_set(document)
 
     def get_fake(self, document, faker, depth):
+        from yadm.testing import create_fake
+        from yadm.aio.testing import aio_create_fake
+
         is_aio = False
         t_doc = document
         while True:
@@ -188,6 +189,8 @@ class TypedEmbeddedDocumentField(BaseEmbeddedDocumentField):
             return ed_class
 
     def get_fake(self, document, faker, depth):
+        from yadm.testing import create_fake
+
         type_name = random.choice(list(self.types))
         ed_class = self.get_embedded_document_class(
             document=document,

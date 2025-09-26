@@ -41,8 +41,6 @@ from yadm.markers import AttributeNotSet
 from yadm.documents import Document, DocumentItemMixin
 from yadm.fields.base import Field, FieldDescriptor, pass_null
 from yadm.serialize import from_mongo
-from yadm.testing import create_fake
-from yadm.aio.testing import aio_create_fake
 
 
 class BrokenReference(Exception):
@@ -93,12 +91,15 @@ class ReferenceField(Field):
             return AttributeNotSet
 
     def _get_fake(self, document, faker, depth):
+        from yadm.testing import create_fake
         return create_fake(self.reference_document_class,
                            __db__=document.__db__,
                            __faker__=faker,
                            __depth__=depth)
 
     async def _get_fake_aio(self, document, faker, depth):
+        from yadm.aio.testing import aio_create_fake
+
         return await aio_create_fake(self.reference_document_class,
                                      __db__=document.__db__,
                                      __faker__=faker,
