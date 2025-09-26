@@ -3,14 +3,16 @@ from __future__ import annotations
 
 from collections import Counter
 from types import GeneratorType
-from typing import Any, Optional, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Optional, Type, TypeVar, cast
 
 import pymongo
 from faker import Faker
 
-from yadm.database import BaseDatabase
 from yadm.documents import BaseDocument, Document, EmbeddedDocument
 from yadm.markers import AttributeNotSet, Marker
+
+if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
+    from yadm.database import BaseDatabase
 
 
 TDocument = TypeVar('TDocument', bound=BaseDocument)
