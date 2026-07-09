@@ -1,4 +1,5 @@
 include README.rst
+include yadm/py.typed
 include setup.cfg
 include tests/*.py
 include doc/*.rst

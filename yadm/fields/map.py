@@ -36,11 +36,13 @@ Map.
     assert doc.map == {'a': 1, 'b': 2}
 
 """
+from __future__ import annotations
+
 from collections import abc
-from typing import NamedTuple, Any, Callable
+from typing import NamedTuple, Any, Callable, Type
 
 from yadm.markers import AttributeNotSet
-from yadm.fields.base import Field, pass_null
+from yadm.fields.base import DocumentLike, Field, pass_null
 from yadm.fields.containers import (
     Container,
     ContainerField,
@@ -61,7 +63,7 @@ class MapUnset(NamedTuple):
 class Map(Container, abc.MutableMapping):
     """ Map.
     """
-    def set(self, key, value, reload=True):
+    def set(self, key: Any, value: Any, reload: bool = True) -> None:
         """ Set key directly in database.
 
         See `$set` in MongoDB's `set`.
@@ -76,7 +78,7 @@ class Map(Container, abc.MutableMapping):
         if reload:
             self.reload()
 
-    def unset(self, key, reload=True):
+    def unset(self, key: Any, reload: bool = True) -> None:
         """ Unset key directly in database.
 
         See `$unset` in MongoDB's `unset`.
@@ -91,15 +93,15 @@ class Map(Container, abc.MutableMapping):
             self.reload()
 
 
-class MapField(ContainerField):
+class MapField(ContainerField[Map]):
     """ Field for maps.
     """
-    container = Map
+    container: Type[Container] = Map
 
-    def get_default_value(self):
+    def get_default_value(self) -> Any:
         return {}
 
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         if value is AttributeNotSet:
             return AttributeNotSet
 
@@ -115,12 +117,12 @@ class MapField(ContainerField):
         return container
 
     @pass_null
-    def to_mongo(self, document, value):
+    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
         tm = self.item_field.to_mongo
         return {k: tm(value, i) for k, i in value.items()}
 
     @pass_null
-    def from_mongo(self, document, value):
+    def from_mongo(self, document: DocumentLike, value: Any) -> Any:
         fm = self.item_field.from_mongo
         sp = self._set_parent
 
@@ -131,7 +133,7 @@ class MapField(ContainerField):
 
 
 class MapCustomKeys(Map):
-    def __init__(self, field, parent, value):
+    def __init__(self, field: Any, parent: Any, value: Any) -> None:
         k2s = field.key_to_str
         pi = field.prepare_item
         value = {k2s(k): pi(self, k, v) for k, v in value.items()}
@@ -140,23 +142,23 @@ class MapCustomKeys(Map):
         self.key_factory = field.key_factory
         self.key_to_str = field.key_to_str
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         key_factory = self.key_factory
         return (key_factory(k) for k in super().__iter__())
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: Any) -> Any:
         return super().__getitem__(self.key_to_str(item))
 
-    def __setitem__(self, item, value):
+    def __setitem__(self, item: Any, value: Any) -> None:
         super().__setitem__(self.key_to_str(item), value)
 
-    def __delitem__(self, item):
+    def __delitem__(self, item: Any) -> None:
         super().__delitem__(self.key_to_str(item))
 
-    def __contains__(self, item):
+    def __contains__(self, item: Any) -> bool:
         return self.key_to_str(item) in self._data
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if other is None or other is AttributeNotSet:
             return False
         elif isinstance(other, dict):
@@ -164,17 +166,17 @@ class MapCustomKeys(Map):
 
         return self._data == other._data
 
-    def set(self, key, value, reload=True):
+    def set(self, key: Any, value: Any, reload: bool = True) -> None:
         return super().set(self.key_to_str(key), value, reload)
 
-    def unset(self, key, value, reload=True):
-        return super().unset(self.key_to_str(key), value, reload)
+    def unset(self, key: Any, reload: bool = True) -> None:
+        return super().unset(self.key_to_str(key), reload)
 
 
 class MapCustomKeysField(MapField):
     """ Field for maps with custom key type.
     """
-    container = MapCustomKeys
+    container: Type[Container] = MapCustomKeys
 
     def __init__(self,
                  item_field: Field,
@@ -187,7 +189,7 @@ class MapCustomKeysField(MapField):
         self.key_to_str = key_to_str
 
     @pass_null
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         if value is AttributeNotSet:
             return AttributeNotSet
 
@@ -205,7 +207,7 @@ class MapCustomKeysField(MapField):
         return container
 
     @pass_null
-    def to_mongo(self, document, value):
+    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
         tm = self.item_field.to_mongo
         k2s = self.key_to_str
         return {k2s(k): tm(value, i) for k, i in value.items()}

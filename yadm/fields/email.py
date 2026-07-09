@@ -1,5 +1,12 @@
-from yadm.fields.base import pass_null
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from yadm.fields.base import DocumentLike, pass_null
 from yadm.fields.simple import StringField
+
+if TYPE_CHECKING:
+    from faker import Faker
 
 
 class InvalidEmail(ValueError):
@@ -8,17 +15,18 @@ class InvalidEmail(ValueError):
 
 
 class EmailField(StringField):
-    def get_fake(self, document, faker, depth):
+    def get_fake(self, document: DocumentLike,
+                 faker: Faker, depth: int) -> Any:
         return faker.email().lower()
 
     @pass_null
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         value = super().prepare_value(document, value).lower()
         self.check_email(value)
         return value
 
     @classmethod
-    def check_email(cls, value):
+    def check_email(cls, value: str) -> None:
         """ Check email classmethod.
 
         Raise `ValueError` if value is not email.
@@ -33,5 +41,5 @@ class EmailField(StringField):
             cls._raise(value)
 
     @staticmethod
-    def _raise(value):
+    def _raise(value: str) -> None:
         raise InvalidEmail('"{}" is not email'.format(value))

@@ -24,14 +24,19 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_ignore_collect(path, config):
-    if '/tests_aio' in str(path):
+def pytest_ignore_collect(collection_path, config):
+    if '/tests_aio' in str(collection_path):
         return not WITH_MOTOR or sys.version_info < (3, 6)
 
 
 @pytest.fixture(scope='session')
 def mongo_args(request):
     uri = request.config.getoption('--mongo')
+
+    if '://' in uri:
+        name = pymongo.uri_parser.parse_uri(uri)['database'] or 'test'
+        return (uri, None, name)
+
     res = re.match(r'([\w\.]+)(?::(\d+))?(?:\/(.+))?', uri)
 
     if not res:
@@ -55,6 +60,8 @@ def mongo_args(request):
 def client(request, mongo_args):
     host, port, name = mongo_args
     try:
+        if port is None:  # full mongodb:// uri
+            return pymongo.MongoClient(host, tz_aware=True)
         return pymongo.MongoClient(host, port, tz_aware=True)
     except pymongo.errors.ConnectionFailure:
         raise pytest.skip("Can't connect to mongodb ({}:{})".format(host, port))

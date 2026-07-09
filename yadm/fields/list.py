@@ -34,18 +34,21 @@ List of objects.
     assert doc.integers == [1, 3]
 
 """
+from __future__ import annotations
+
 from collections import abc
 from typing import NamedTuple, Any
 
-from yadm.fields.base import pass_null
+from yadm.fields.base import DocumentLike, pass_null
 from yadm.fields.containers import (
     Container,
     ContainerField,
 )
+from typing import Type
 
 
 class ListInsert(NamedTuple):
-    index: int
+    index: int  # type: ignore[assignment]
     value: Any
     op: str = 'list_insert'
 
@@ -56,7 +59,7 @@ class ListAppend(NamedTuple):
 
 
 class ListRemove(NamedTuple):
-    index: int
+    index: int  # type: ignore[assignment]
     op: str = 'list_remove'
 
 
@@ -73,7 +76,7 @@ class ListPull(NamedTuple):
 class List(Container, abc.MutableSequence):
     """ Container for list.
     """
-    def insert(self, index, item):
+    def insert(self, index: int, item: Any) -> None:
         """ Append item to list.
 
         This method does not save object!
@@ -81,7 +84,7 @@ class List(Container, abc.MutableSequence):
         self._data.insert(index, self._prepare_item(index, item))
         self.__log__.append(ListInsert(index=index, value=item))
 
-    def append(self, item):
+    def append(self, item: Any) -> None:
         """ Append item to list.
 
         This method does not save object!
@@ -90,7 +93,7 @@ class List(Container, abc.MutableSequence):
         self._data.append(self._prepare_item(index, item))
         self.__log__.append(ListAppend(value=item))
 
-    def remove(self, item):
+    def remove(self, item: Any) -> None:
         """ Remove item from list.
 
         This method does not save object!
@@ -98,7 +101,7 @@ class List(Container, abc.MutableSequence):
         self._data.remove(item)
         self.__log__.append(ListRemove(index=item))
 
-    def push(self, item, reload=True):
+    def push(self, item: Any, reload: bool = True) -> None:
         """ Push item directly to database.
 
         See `$push` in MongoDB's `update_one`.
@@ -115,7 +118,7 @@ class List(Container, abc.MutableSequence):
         if reload:
             self.reload()
 
-    def pull(self, query, reload=True):
+    def pull(self, query: Any, reload: bool = True) -> None:
         """ Pull item from database.
 
         See `$pull` in MongoDB's `update_one`.
@@ -127,7 +130,7 @@ class List(Container, abc.MutableSequence):
         if reload:
             self.reload()
 
-    def replace(self, query, item, reload=True):
+    def replace(self, query: Any, item: Any, reload: bool = True) -> None:
         """ Replace list elements.
         """
         data = self._item_field.to_mongo(self, item)
@@ -143,7 +146,7 @@ class List(Container, abc.MutableSequence):
         if reload:
             self.reload()
 
-    def update(self, query, values, reload=True):
+    def update(self, query: Any, values: Any, reload: bool = True) -> None:
         """ Update fields in embedded documents.
         """
         processed_query = {}
@@ -162,7 +165,7 @@ class List(Container, abc.MutableSequence):
             self.reload()
 
 
-class ListField(ContainerField):
+class ListField(ContainerField[List]):
     """ Field for list values.
 
     For example, document with list of integers:
@@ -171,12 +174,12 @@ class ListField(ContainerField):
             __collection__ = 'testdoc'
             li = fields.ListField(fields.IntegerField())
     """
-    container = List
+    container: Type[Container] = List
 
-    def get_default_value(self):
+    def get_default_value(self) -> Any:
         return []
 
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         pi = self.prepare_item
         container = self.container(self, document, [])
         g = (pi(container, n, i) for n, i in enumerate(value))
@@ -184,12 +187,12 @@ class ListField(ContainerField):
         return container
 
     @pass_null
-    def to_mongo(self, document, value):
+    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
         tm = self.item_field.to_mongo
         return [tm(value, i) for i in value]
 
     @pass_null
-    def from_mongo(self, document, value):
+    def from_mongo(self, document: DocumentLike, value: Any) -> Any:
         fm = self.item_field.from_mongo
         sp = self._set_parent
 

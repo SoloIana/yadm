@@ -2,10 +2,12 @@
 Functions for serialize and deserialize data.
 """
 
-from collections import defaultdict
-from typing import Any, Union, Optional, Container, Iterable, Dict
+from __future__ import annotations
 
-from yadm.documents import MetaDocument, BaseDocument
+from collections import defaultdict
+from typing import Any, Union, Optional, Collection, Iterable, Dict, Type, TypeVar
+
+from yadm.documents import BaseDocument
 from yadm.document_item import DocumentItemMixin
 from yadm.exceptions import NotLoadedError
 from yadm.markers import AttributeNotSet
@@ -15,11 +17,12 @@ LOOKUPS_KEY = '__yadm_lookups__'
 
 
 TRaw = Dict[str, Any]
+TB = TypeVar('TB', bound=BaseDocument)
 
 
 def to_mongo(document: BaseDocument,
-             exclude: Optional[Container[str]] = None,
-             include: Optional[Container[str]] = None,
+             exclude: Optional[Collection[str]] = None,
+             include: Optional[Collection[str]] = None,
              skip_not_loaded: bool = False) -> TRaw:
     """ Serialize document to MongoDB data.
 
@@ -30,7 +33,7 @@ def to_mongo(document: BaseDocument,
     5. Lookup in __not_loaded__;
     6. Process values with '.' from include;
     """
-    result = {}
+    result: TRaw = {}
 
     not_loaded = set()
     if document.__not_loaded__:
@@ -78,13 +81,13 @@ def to_mongo(document: BaseDocument,
     return result
 
 
-def from_mongo(document_class: MetaDocument, raw: TRaw,
+def from_mongo(document_class: Type[TB], raw: TRaw,
                not_loaded: Optional[Iterable[str]] = None,
                parent: Union[BaseDocument, DocumentItemMixin, None] = None,
-               name: Optional[str] = None) -> BaseDocument:
+               name: Optional[str] = None) -> TB:
     """ Deserialize MongoDB raw data to document.
     """
-    document = document_class(__new_document__=False)
+    document: Any = document_class(__new_document__=False)
     document.__raw__ = raw
     document.__not_loaded__ = frozenset(not_loaded or frozenset())
 

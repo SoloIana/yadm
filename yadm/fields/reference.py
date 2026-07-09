@@ -31,15 +31,34 @@ Or with asyncio:
     assert doc.rdoc == rdoc.id
 
 """
+from __future__ import annotations
+
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generator,
+    Optional,
+    Type,
+    TypeVar,
+    overload,
+)
+
 from bson import ObjectId
 
 from yadm.common import EnclosedDocDescriptor
 from yadm.markers import AttributeNotSet
-from yadm.documents import Document, DocumentItemMixin
-from yadm.fields.base import Field, FieldDescriptor, pass_null
+from yadm.documents import Document, DocumentItemMixin  # noqa
+from yadm.fields.base import DocumentLike, Field, FieldDescriptor, pass_null
 from yadm.serialize import from_mongo
 from yadm.testing import create_fake
 from yadm.aio.testing import aio_create_fake
+
+if TYPE_CHECKING:
+    from typing import Self
+
+    from faker import Faker
+
+TDoc = TypeVar('TDoc', bound=Document)
 
 
 class BrokenReference(Exception):
@@ -53,9 +72,9 @@ class NotBindingToDatabase(Exception):  # noqa
     """
 
 
-class ReferenceFieldDescriptor(FieldDescriptor):
+class ReferenceFieldDescriptor(FieldDescriptor[Any]):
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: Any, owner: Optional[type] = None) -> Any:
         if instance is None:
             return self.field
 
@@ -71,7 +90,7 @@ class ReferenceFieldDescriptor(FieldDescriptor):
             return super().__get__(instance, owner)
 
 
-class ReferenceField(Field):
+class ReferenceField(Field[TDoc]):
     """ Field for work with references.
 
     :param reference_document_class: class for refered documents
@@ -79,29 +98,52 @@ class ReferenceField(Field):
     descriptor_class = ReferenceFieldDescriptor
     reference_document_class = EnclosedDocDescriptor('reference')
 
-    def __init__(self, reference_document_class, **kwargs):
+    @overload
+    def __init__(self: ReferenceField[TDoc],
+                 reference_document_class: Type[TDoc],
+                 **kwargs: Any) -> None: ...
+
+    @overload
+    def __init__(self: ReferenceField[Any],
+                 reference_document_class: str,
+                 **kwargs: Any) -> None: ...
+
+    def __init__(self, reference_document_class: Any, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.reference_document_class = reference_document_class
 
-    def get_default(self, document):
+    if TYPE_CHECKING:
+        # Instance access is typed Any: a sync database resolves the
+        # reference to the document, an aio database returns an awaitable
+        # Reference and smart_null may give None.
+        @overload
+        def __get__(self, instance: None, owner: type) -> Self: ...
+        @overload
+        def __get__(self, instance: Any, owner: type) -> Any: ...
+        def __get__(self, instance: Any, owner: type) -> Any: ...
+
+    def get_default(self, document: DocumentLike) -> Any:
         if self.smart_null:  # pragma: no cover
             return None
         else:
             return AttributeNotSet
 
-    def _get_fake(self, document, faker, depth):
+    def _get_fake(self, document: Any,
+                  faker: Faker, depth: int) -> Any:
         return create_fake(self.reference_document_class,
                            __db__=document.__db__,
                            __faker__=faker,
                            __depth__=depth)
 
-    async def _get_fake_aio(self, document, faker, depth):
+    async def _get_fake_aio(self, document: Any,
+                            faker: Faker, depth: int) -> Any:
         return await aio_create_fake(self.reference_document_class,
                                      __db__=document.__db__,
                                      __faker__=faker,
                                      __depth__=depth)
 
-    def get_fake(self, document, faker, depth):
+    def get_fake(self, document: Any,
+                 faker: Faker, depth: int) -> Any:
         """ Try create referenced document.
         """
         if document.__db__ is not None and document.__db__.aio:
@@ -109,12 +151,12 @@ class ReferenceField(Field):
         else:
             return self._get_fake(document, faker, depth)
 
-    def copy(self):
+    def copy(self) -> Self:
         return self.__class__(self.reference_document_class,
                               smart_null=self.smart_null)
 
     @pass_null
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         if isinstance(value, Document):
             return value
         elif value is AttributeNotSet:  # pragma: no cover
@@ -123,7 +165,7 @@ class ReferenceField(Field):
             return self.from_mongo(document, value)
 
     @pass_null
-    def from_mongo(self, document, value):
+    def from_mongo(self, document: Any, value: Any) -> Any:
         """ Resolve reference.
 
         1. Lookup in querysets cache;
@@ -171,7 +213,7 @@ class ReferenceField(Field):
             raise NotBindingToDatabase((document, self, value))
 
     @pass_null
-    def to_mongo(self, document, value):
+    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
         return value.id
 
 
@@ -182,27 +224,27 @@ class Reference(ObjectId):
 
         doc = await doc.reference
     """
-    document = None
+    document: Optional[Document] = None
 
     def __init__(self,
                  _id: ObjectId,
-                 parent: DocumentItemMixin,
-                 document_class):
+                 parent: Any,
+                 document_class: Any) -> None:
         super().__init__(_id)
         self.parent = parent
         self.db = parent.__db__
         self.document_class = document_class
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         n = self.__class__.__name__
         collection = self.document_class.__collection__
         status = '+' if self.document is not None else '-'
         return "{}({}:{} {})".format(n, collection, str(self), status)
 
-    def __await__(self):
+    def __await__(self) -> Generator[Any, None, Any]:
         return self.get().__await__()
 
-    async def get(self, force: bool = False):
+    async def get(self, force: bool = False) -> Any:
         if self.document is None or force:
             self.document = await self.db(self.document_class).find_one(self)
             if self.document is None:  # pragma: no cover

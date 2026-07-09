@@ -1,10 +1,16 @@
 """ Currencies for Money.
 """
-from collections import namedtuple
+from __future__ import annotations
+
 import random
+from collections import namedtuple
+from typing import TYPE_CHECKING, Any
 
 from yadm.markers import AttributeNotSet
-from yadm.fields.base import Field, DefaultMixin, pass_null
+from yadm.fields.base import DefaultMixin, DocumentLike, Field, pass_null
+
+if TYPE_CHECKING:
+    from faker import Faker
 
 
 Currency = namedtuple('Currency', ['code', 'string', 'precision'])
@@ -191,14 +197,14 @@ DEFAULT_CURRENCIES_LIST = [
 
 
 class CurrencyStorage(dict):
-    def __init__(self, currencies):
+    def __init__(self, currencies: Any) -> None:
         super().__init__()
         for code, string, precision in currencies:
             currency = Currency(code, string, precision)
             self[code] = currency
             self[string] = currency
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: Any) -> Any:
         if isinstance(item, (str, int)):
             if item in self:
                 return super().__getitem__(item)
@@ -217,10 +223,10 @@ class CurrencyStorage(dict):
 DEFAULT_CURRENCY_STORAGE = CurrencyStorage(DEFAULT_CURRENCIES_LIST)
 
 
-class CurrencyField(DefaultMixin, Field):
+class CurrencyField(DefaultMixin, Field[Currency]):
     def __init__(self, *,
-                 default=AttributeNotSet,
-                 currency_storage=DEFAULT_CURRENCY_STORAGE):
+                 default: Any = AttributeNotSet,
+                 currency_storage: Any = DEFAULT_CURRENCY_STORAGE) -> None:
         self._currency_storage = currency_storage
 
         if default is AttributeNotSet:
@@ -232,11 +238,12 @@ class CurrencyField(DefaultMixin, Field):
 
         super().__init__(default=default)
 
-    def get_fake(self, document, faker, depth):  # pragma: no cover
+    def get_fake(self, document: DocumentLike,
+                 faker: Faker, depth: int) -> Any:  # pragma: no cover
         return random.choice(list(DEFAULT_CURRENCY_STORAGE.values()))
 
     @pass_null
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         if isinstance(value, Currency):
             return value
         elif isinstance(value, (str, int)):
@@ -248,9 +255,9 @@ class CurrencyField(DefaultMixin, Field):
             raise TypeError("Only Currency or None is allowed for CurrencyField.")
 
     @pass_null
-    def to_mongo(self, document, value):
+    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
         return value.string
 
     @pass_null
-    def from_mongo(self, document, value):
+    def from_mongo(self, document: DocumentLike, value: Any) -> Any:
         return self._currency_storage[value]

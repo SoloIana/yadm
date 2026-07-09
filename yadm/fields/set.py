@@ -3,8 +3,12 @@ Field with sets.
 
 Similar as :py:mod:`yadm.fields.list`.
 """
+from __future__ import annotations
+
 from collections import abc
 from typing import NamedTuple, Any
+
+from typing import Type
 
 from yadm.fields.containers import Container
 from yadm.fields.list import ListField
@@ -38,25 +42,25 @@ class SetPull(NamedTuple):
 class Set(Container, abc.MutableSet):
     """ Container for set.
     """
-    def __getitem__(self, item):
+    def __getitem__(self, item: Any) -> Any:
         raise TypeError("'{}' object does not support indexing"
                         "".format(self.__class__.__name__))
 
-    def __setitem__(self, item, value):
+    def __setitem__(self, item: Any, value: Any) -> None:
         raise TypeError("'{}' object does not support item assignment"
                         "".format(self.__class__.__name__))
 
-    def __delitem__(self, item):
+    def __delitem__(self, item: Any) -> None:
         raise TypeError("'{}' object doesn't support item deletion"
                         "".format(self.__class__.__name__))
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, set):
             return set(self) == set(other)
         else:
             return False
 
-    def add(self, item):
+    def add(self, item: Any) -> None:
         """ Append item to set.
 
         This method does not save object!
@@ -66,7 +70,7 @@ class Set(Container, abc.MutableSet):
             self._data.append(item)
             self.__log__.append(SetAdd(value=item))
 
-    def discard(self, item):
+    def discard(self, item: Any) -> None:
         """ Remove item from the set if it is present.
 
         This method does not save object!
@@ -78,7 +82,7 @@ class Set(Container, abc.MutableSet):
         else:
             self.__log__.append(SetDiscard(value=item))
 
-    def remove(self, item):
+    def remove(self, item: Any) -> None:
         """ Remove item from set.
 
         This method does not save object!
@@ -90,7 +94,7 @@ class Set(Container, abc.MutableSet):
         else:
             self.__log__.append(SetRemove(value=item))
 
-    def add_to_set(self, item, reload=True):
+    def add_to_set(self, item: Any, reload: bool = True) -> None:
         """ Add item directly to database.
 
         See `$addToSet` in MongoDB's `update_one`.
@@ -111,7 +115,7 @@ class Set(Container, abc.MutableSet):
         if reload:
             self.reload()
 
-    def pull(self, query, reload=True):
+    def pull(self, query: Any, reload: bool = True) -> None:
         """ Pull item from database.
 
         See `$pull` in MongoDB's `update_one`.
@@ -128,4 +132,4 @@ class Set(Container, abc.MutableSet):
 class SetField(ListField):
     """ Field for set values.
     """
-    container = Set
+    container: Type[Container] = Set

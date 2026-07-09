@@ -25,7 +25,7 @@ async def docs2(db):
 
 
 @pytest.mark.asyncio
-async def test_async_for(event_loop, db, docs2):
+async def test_async_for(db, docs2):
     agg = db.aggregate(Doc).match(i={'$gt': 0}).project(n='$i')
     agg = agg.comment('qwerty')
     count = 0

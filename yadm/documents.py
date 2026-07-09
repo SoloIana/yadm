@@ -11,7 +11,17 @@ Basic documents classes for build models.
 
 All fields placed in :py:mod:`yadm.fields` package.
 """
-from typing import Union, Optional, Any, Generator, Dict
+from __future__ import annotations
+
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Dict,
+    Generator,
+    Optional,
+    Union,
+)
 
 from bson import ObjectId
 from faker import Faker
@@ -21,6 +31,10 @@ from yadm.fields.simple import ObjectIdField
 from yadm.document_item import DocumentItemMixin
 from yadm.log_items import BaseLog
 
+if TYPE_CHECKING:
+    from yadm.database import BaseDatabase
+    from yadm.queryset import BaseQuerySet
+
 
 class DocumentLog(BaseLog):
     pass
@@ -29,6 +43,8 @@ class DocumentLog(BaseLog):
 class MetaDocument(type):
     """ Metaclass for documents.
     """
+    __fields__: Dict[str, Field[Any]]
+
     def __init__(cls, name: str, bases: tuple, cls_dict: dict):  # noqa
         cls.__fields__ = {}
 
@@ -54,14 +70,15 @@ class MetaDocument(type):
 class BaseDocument(metaclass=MetaDocument):
     """ Base class for all documents.
     """
+    __fields__: ClassVar[Dict[str, Field[Any]]]
     __raw__: dict
     __cache__: dict
     __not_loaded__: frozenset = frozenset()
 
     def __init__(self,
-                 *args,
+                 *args: Any,
                  __new_document__: bool = True,
-                 **kwargs):
+                 **kwargs: Any):
         if args:
             if len(args) != 1:
                 raise TypeError("only one positional argument accepted!")
@@ -107,7 +124,7 @@ class BaseDocument(metaclass=MetaDocument):
         # yield
         # # post save processor
 
-    def __debug_print__(self):  # pragma: no cover
+    def __debug_print__(self) -> None:  # pragma: no cover
         """ Print debug information.
         """
         from pprint import pprint
@@ -116,7 +133,7 @@ class BaseDocument(metaclass=MetaDocument):
             'raw': self.__raw__,
             'not_loaded': self.__not_loaded__,
             'cache': self.__cache__,
-            'log': self.__log__,
+            'log': getattr(self, '__log__', None),
         })
 
 
@@ -127,18 +144,18 @@ class Document(BaseDocument):
     __default_projection__: Optional[Dict[str, Any]] = None
     __new_document__: bool = True
     __log__: DocumentLog
-    __db__: 'yadm.database.BaseDatabase'
-    __qs__: 'QuerySet' = None
+    __db__: Optional[BaseDatabase]
+    __qs__: Optional[BaseQuerySet[Any]] = None
 
     __yadm_lookups__: dict
 
     _id = ObjectIdField()
 
     def __init__(self,
-                 *args,
-                 __db__: Optional['yadm.database.BaseDatabase'] = None,
+                 *args: Any,
+                 __db__: Optional[BaseDatabase] = None,
                  __new_document__: bool = True,
-                 **kwargs):
+                 **kwargs: Any):
         self.__db__ = __db__
         self.__new_document__ = __new_document__
         self.__yadm_lookups__ = {}
@@ -149,7 +166,7 @@ class Document(BaseDocument):
         _id = getattr(self, '_id', '<new>')
         return '{}({})'.format(self.__class__.__name__, _id)
 
-    def __eq__(self, other: Union['Document', ObjectId]) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, Document):
             return self.id == other.id
         elif isinstance(other, ObjectId):
@@ -165,11 +182,11 @@ class Document(BaseDocument):
         return self._id
 
     @id.setter
-    def id(self, id: ObjectId):
+    def id(self, id: ObjectId) -> None:
         self._id = id
 
     @id.deleter
-    def id(self):  # pragma: no cover
+    def id(self) -> None:  # pragma: no cover
         del self._id
 
 
@@ -177,14 +194,16 @@ class EmbeddedDocument(DocumentItemMixin, BaseDocument):
     """ Class for build embedded documents.
     """
     def __init__(self,
-                 *args,
+                 *args: Any,
                  __parent__: Union[BaseDocument, DocumentItemMixin, None] = None,
                  __name__: Optional[str] = None,
-                 **kwargs):
+                 **kwargs: Any):
         self.__parent__ = __parent__
         self.__name__ = __name__
         super().__init__(*args, **kwargs)
 
     @property
     def __new_document__(self) -> bool:  # pragma: no cover
-        return self.__document__.__new_document__
+        document = self.__document__
+        assert document is not None
+        return document.__new_document__

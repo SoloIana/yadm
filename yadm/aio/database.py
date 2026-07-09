@@ -1,13 +1,18 @@
+from __future__ import annotations
+
 import itertools
+from typing import Any, Iterable, Optional, Type
 
 import pymongo
+from pymongo.results import DeleteResult, InsertManyResult, InsertOneResult, UpdateResult
 from bson import ObjectId
 
+from yadm.documents import Document
 from yadm.log_items import Insert, Save, UpdateOne, DeleteOne, Reload
 from yadm.database import BaseDatabase
 from yadm.serialize import to_mongo, from_mongo
 from yadm.bulk_writer import BATCH_SIZE as BULK_BATCH_SIZE
-from yadm.common import build_update_query
+from yadm.common import Projection, TDoc, build_update_query
 
 from .queryset import AioQuerySet
 from .aggregation import AioAggregator
@@ -19,7 +24,8 @@ RPS = pymongo.read_preferences
 class AioDatabase(BaseDatabase):
     aio = True
 
-    async def insert_one(self, document, **collection_params):
+    async def insert_one(self, document: Document,
+                         **collection_params: Any) -> InsertOneResult:
         document.__db__ = self
         collection = self._get_collection(document.__class__,
                                           collection_params)
@@ -30,8 +36,10 @@ class AioDatabase(BaseDatabase):
         document.__log__.append(Insert(id=result.inserted_id))
         return result
 
-    async def insert_many(self, documents, *, ordered=True, **collection_params):
-        def gen(documents):
+    async def insert_many(self, documents: Iterable[Document], *,
+                           ordered: bool = True,
+                           **collection_params: Any) -> InsertManyResult:
+        def gen(documents: Iterable[Document]) -> Any:
             for document in documents:
                 yield to_mongo(document)
                 document.__log__.append(Insert())
@@ -67,7 +75,8 @@ class AioDatabase(BaseDatabase):
                 ordered=False,
             )
 
-    async def save(self, document, **collection_params):
+    async def save(self, document: TDoc,  # type: ignore[override]
+                   **collection_params: Any) -> TDoc:
         document.__db__ = self
         if not hasattr(document, 'id'):
             document.id = ObjectId()
@@ -84,10 +93,14 @@ class AioDatabase(BaseDatabase):
         document.__log__.append(Save(id=document.id))
         return document
 
-    async def update_one(self, document, *, reload=True,
-                         set=None, unset=None, inc=None,
-                         push=None, pull=None,
-                         **collection_params):  # TODO: extend
+    async def update_one(self, document: Document, *, reload: bool = True,
+                         set: Optional[dict] = None,
+                         unset: Any = None,
+                         inc: Optional[dict] = None,
+                         push: Optional[dict] = None,
+                         pull: Optional[dict] = None,
+                         **collection_params: Any,
+                         ) -> Optional[UpdateResult]:  # TODO: extend
         update_data = build_update_query(set=set, unset=unset, inc=inc,
                                          push=push, pull=pull)
 
@@ -107,16 +120,18 @@ class AioDatabase(BaseDatabase):
 
         return result
 
-    async def delete_one(self, document, **collection_params):
+    async def delete_one(self, document: Document,
+                         **collection_params: Any) -> DeleteResult:
         collection = self._get_collection(document.__class__, collection_params)
         res = await collection.delete_one({'_id': document._id})
         document.__log__.append(DeleteOne())
         return res
 
-    async def reload(self, document, new_instance=False, *,
-                     projection=None,
-                     read_preference=RPS.PrimaryPreferred(),
-                     **collection_params):
+    async def reload(self, document: TDoc, new_instance: bool = False, *,
+                     projection: Optional[Projection] = None,
+                     read_preference: Any = RPS.PrimaryPreferred(),
+                     **collection_params: Any) -> TDoc:
+        new: Any
         collection_params['read_preference'] = read_preference
         qs = self.get_queryset(document.__class__,
                                projection=projection,
@@ -137,11 +152,11 @@ class AioDatabase(BaseDatabase):
             document.__not_loaded__ = new.__not_loaded__
             return document
 
-    async def get_document(self, document_class, _id, *,
-                           projection=None,
-                           exc=None,
-                           read_preference=RPS.PrimaryPreferred(),
-                           **collection_params):
+    async def get_document(self, document_class: Type[TDoc], _id: Any, *,
+                           projection: Optional[Projection] = None,
+                           exc: Optional[Type[BaseException]] = None,
+                           read_preference: Any = RPS.PrimaryPreferred(),
+                           **collection_params: Any) -> Optional[TDoc]:
         collection_params['read_preference'] = read_preference
         col = self.db.get_collection(document_class.__collection__,
                                      **collection_params)
@@ -166,10 +181,10 @@ class AioDatabase(BaseDatabase):
         else:
             return None
 
-    def get_queryset(self, document_class, *,
-                     projection=None,
-                     cache=None,
-                     **collection_params):
+    def get_queryset(self, document_class: Type[TDoc], *,
+                     projection: Optional[Projection] = None,
+                     cache: Any = None,
+                     **collection_params: Any) -> AioQuerySet[TDoc]:
         if projection is None:
             projection = document_class.__default_projection__
 
@@ -178,22 +193,24 @@ class AioDatabase(BaseDatabase):
                            cache=cache,
                            collection_params=collection_params)
 
-    async def estimated_document_count(self, document_class,
-                                       **collection_params):
+    async def estimated_document_count(self, document_class: Any,
+                                       **collection_params: Any) -> int:
         """ Get an estimate of the number of documents in this collection.
         """
         collection = self._get_collection(document_class, collection_params)
         return await collection.estimated_document_count()
 
-    def aggregate(self, document_class, *, pipeline=None, **collection_params):
+    def aggregate(self, document_class: Any, *,
+                  pipeline: Any = None,
+                  **collection_params: Any) -> AioAggregator:
         return AioAggregator(self, document_class,
                              pipeline=pipeline,
                              collection_params=collection_params)
 
-    def bulk_write(self, document_class, *,
-                   ordered=False,
-                   batch_size=BULK_BATCH_SIZE,
-                   **collection_params):
+    def bulk_write(self, document_class: Any, *,
+                   ordered: bool = False,
+                   batch_size: int = BULK_BATCH_SIZE,
+                   **collection_params: Any) -> AioBulkWriter:
         """ Return AioBulkWriter for realize bulk_write from pymongo.
         """
         return AioBulkWriter(self, document_class,

@@ -1,6 +1,7 @@
 import random
 
 import pytest
+import pytest_asyncio
 import pymongo
 from bson import ObjectId
 
@@ -15,16 +16,14 @@ class Doc(Document):
     s = fields.StringField()
 
 
-@pytest.fixture
-def qs(event_loop, db):
-    async def fixture():
-        for n in range(10):
-            await db.db['testdocs'].insert_one({
-                'i': n,
-                's': 'str({})'.format(n),
-            })
+@pytest_asyncio.fixture
+async def qs(db):
+    for n in range(10):
+        await db.db['testdocs'].insert_one({
+            'i': n,
+            's': 'str({})'.format(n),
+        })
 
-    event_loop.run_until_complete(fixture())
     return db.get_queryset(Doc)
 
 
@@ -295,14 +294,11 @@ async def test_bulk(qs):
 
 
 class TestFindIn:
-    @pytest.fixture(autouse=True)
-    def ids(self, event_loop, qs):
-        async def fixture():
-            ids = [doc.id async for doc in qs]
-            random.shuffle(ids)
-            return ids
-
-        return event_loop.run_until_complete(fixture())
+    @pytest_asyncio.fixture(autouse=True)
+    async def ids(self, qs):
+        ids = [doc.id async for doc in qs]
+        random.shuffle(ids)
+        return ids
 
     @pytest.mark.asyncio
     async def test_simple(self, qs, ids):

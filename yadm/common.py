@@ -1,6 +1,32 @@
 """ Common part for working with imports, documents and so on.
 """
+from __future__ import annotations
+
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
+
 from zope.dottedname.resolve import resolve
+
+if TYPE_CHECKING:
+    from yadm.documents import Document
+
+
+Criteria = Dict[str, Any]
+Projection = Dict[str, Any]
+SortItem = Tuple[str, int]
+Sort = List[SortItem]
+Hint = Union[str, List[SortItem]]
+
+TDoc = TypeVar('TDoc', bound='Document')
 
 
 class EnclosedDocDescriptor:
@@ -15,13 +41,15 @@ class EnclosedDocDescriptor:
     _DOC_CLS = 'document_class'
     _RECURSIVE_REF_CONST = 'self'
 
-    def __init__(self, enclosed_cls_type):
+    attr_name: str
+
+    def __init__(self, enclosed_cls_type: str) -> None:
         if enclosed_cls_type in ('embedded', 'reference'):
             self.attr_name = '_{}_{}'.format(enclosed_cls_type, self._DOC_CLS)
         else:
             raise ValueError
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: Any, owner: Optional[type] = None) -> Any:
         if not instance:
             return self
 
@@ -36,17 +64,23 @@ class EnclosedDocDescriptor:
 
         return value
 
-    def __set__(self, instance, value):
+    def __set__(self, instance: Any, value: Any) -> None:
         setattr(instance, self.attr_name, value)
 
-    def __delete__(self, instance):
+    def __delete__(self, instance: Any) -> None:
         delattr(instance, self.attr_name)
 
 
-def build_update_query(set=None, unset=None, inc=None, push=None, pull=None):
+def build_update_query(
+        set: Optional[Dict[str, Any]] = None,
+        unset: Union[Dict[str, Any], Iterable[str], None] = None,
+        inc: Optional[Dict[str, Any]] = None,
+        push: Optional[Dict[str, Any]] = None,
+        pull: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
     """ Helper for build update-queries.
     """
-    query = {}
+    query: Dict[str, Any] = {}
 
     if set:
         query['$set'] = set

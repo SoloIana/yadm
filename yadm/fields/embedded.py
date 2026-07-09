@@ -15,25 +15,42 @@ Work with embedded documents.
     doc.edoc.i = 13
     db.insert_one(doc)
 """
+from __future__ import annotations
+
 import random
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Optional,
+    Type,
+    TypeVar,
+    overload,
+)
 
 from yadm.common import EnclosedDocDescriptor
 from yadm.documents import EmbeddedDocument
 from yadm.markers import AttributeNotSet
-from yadm.fields.base import Field, pass_null
+from yadm.fields.base import DocumentLike, Field, pass_null
 from yadm.serialize import to_mongo, from_mongo
 from yadm.testing import create_fake
 from yadm.aio.testing import aio_create_fake
 
+if TYPE_CHECKING:
+    from faker import Faker
 
-class BaseEmbeddedDocumentField(Field):
-    def get_embedded_document_class(self, document, value):
+TEDoc = TypeVar('TEDoc', bound=EmbeddedDocument)
+
+
+class BaseEmbeddedDocumentField(Field[TEDoc]):
+    def get_embedded_document_class(
+            self, document: Any, value: Any) -> Any:
         """ Return class of embedded document for field.
         """
         raise NotImplementedError()
 
     @pass_null
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         if value is AttributeNotSet:
             return value
 
@@ -48,17 +65,18 @@ class BaseEmbeddedDocumentField(Field):
         return value
 
     @pass_null
-    def to_mongo(self, document, value):
+    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
         return to_mongo(value)
 
     @pass_null
-    def from_mongo(self, document, value):
+    def from_mongo(self, document: DocumentLike, value: Any) -> Any:
         ed_class = self.get_embedded_document_class(document, value)
         not_loaded = set()
 
-        if getattr(document, '__not_loaded__', None):
+        document_not_loaded = getattr(document, '__not_loaded__', None)
+        if document_not_loaded:
             _sw = self.name + '.'
-            for field_name in document.__not_loaded__:
+            for field_name in document_not_loaded:
                 if field_name.startswith(_sw):
                     not_loaded.add(field_name[len(_sw):])
 
@@ -68,7 +86,7 @@ class BaseEmbeddedDocumentField(Field):
                           name=self.name)
 
 
-class EmbeddedDocumentField(BaseEmbeddedDocumentField):
+class EmbeddedDocumentField(BaseEmbeddedDocumentField[TEDoc]):
     """ Field for embedded objects.
 
     :param EmbeddedDocument embedded_document_class:
@@ -79,16 +97,27 @@ class EmbeddedDocumentField(BaseEmbeddedDocumentField):
     auto_create = True
     embedded_document_class = EnclosedDocDescriptor('embedded')
 
-    def __init__(self, embedded_document_class, *,
-                 auto_create=True, **kwargs):
+    @overload
+    def __init__(self: EmbeddedDocumentField[TEDoc],
+                 embedded_document_class: Type[TEDoc], *,
+                 auto_create: bool = True, **kwargs: Any) -> None: ...
+
+    @overload
+    def __init__(self: EmbeddedDocumentField[Any],
+                 embedded_document_class: Optional[str], *,
+                 auto_create: bool = True, **kwargs: Any) -> None: ...
+
+    def __init__(self, embedded_document_class: Any, *,
+                 auto_create: bool = True, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.embedded_document_class = embedded_document_class
         self.auto_create = auto_create
 
-    def get_embedded_document_class(self, document=None, value=None):
+    def get_embedded_document_class(
+            self, document: Any = None, value: Any = None) -> Any:
         return self.embedded_document_class
 
-    def get_if_attribute_not_set(self, document):
+    def get_if_attribute_not_set(self, document: DocumentLike) -> Any:
         """ Call if key not exist in document.
 
         If auto_create is True, create and return new
@@ -102,13 +131,14 @@ class EmbeddedDocumentField(BaseEmbeddedDocumentField):
         else:
             return super().get_if_attribute_not_set(document)
 
-    def get_fake(self, document, faker, depth):
+    def get_fake(self, document: DocumentLike,
+                 faker: Faker, depth: int) -> Any:
         is_aio = False
         t_doc = document
         while True:
             db = getattr(t_doc, '__db__', None)
             if db is not None:
-                is_aio = t_doc.__db__.aio
+                is_aio = db.aio
                 break
             else:
                 parent = getattr(t_doc, '__parent__', None)
@@ -117,6 +147,7 @@ class EmbeddedDocumentField(BaseEmbeddedDocumentField):
                 else:
                     break
 
+        func: Callable[..., Any]
         if not is_aio:
             func = create_fake
         else:
@@ -130,7 +161,7 @@ class EmbeddedDocumentField(BaseEmbeddedDocumentField):
         )
 
     @pass_null
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         if value is AttributeNotSet:
             return value
 
@@ -149,24 +180,25 @@ class EmbeddedDocumentField(BaseEmbeddedDocumentField):
 
         return value
 
-    def copy(self):
+    def copy(self) -> EmbeddedDocumentField[TEDoc]:
         """ Return copy of field.
         """
         ed_class = self.get_embedded_document_class()
         return self.__class__(ed_class, smart_null=self.smart_null)
 
 
-class TypedEmbeddedDocumentField(BaseEmbeddedDocumentField):
+class TypedEmbeddedDocumentField(BaseEmbeddedDocumentField[TEDoc]):
     """ Field for embedded document with variable types.
 
     :param str type_field: name of field in embedded document
         for select type
     :param dict types: map of type names to embedded document classes
     """
-    type_field = None
-    types = None
+    type_field: Any = None
+    types: Any = None
 
-    def __init__(self, type_field=None, types=None, **kwargs):
+    def __init__(self, type_field: Optional[str] = None,
+                 types: Optional[dict] = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
         self.type_field = type_field or self.type_field
@@ -177,7 +209,8 @@ class TypedEmbeddedDocumentField(BaseEmbeddedDocumentField):
         elif self.type_field is None:
             raise TypeError("type_field attribute is not set")
 
-    def get_embedded_document_class(self, document, value):
+    def get_embedded_document_class(
+            self, document: Any, value: Any) -> Any:
         type_name = value.get(self.type_field, AttributeNotSet)
         ed_class = self.types.get(type_name, None)
 
@@ -187,7 +220,8 @@ class TypedEmbeddedDocumentField(BaseEmbeddedDocumentField):
         else:
             return ed_class
 
-    def get_fake(self, document, faker, depth):
+    def get_fake(self, document: DocumentLike,
+                 faker: Faker, depth: int) -> Any:
         type_name = random.choice(list(self.types))
         ed_class = self.get_embedded_document_class(
             document=document,
@@ -204,7 +238,7 @@ class TypedEmbeddedDocumentField(BaseEmbeddedDocumentField):
         )
 
 
-class SimpleEmbeddedDocumentField(EmbeddedDocumentField):
+class SimpleEmbeddedDocumentField(EmbeddedDocumentField[Any]):
     """ Field for simply create embedded documents.
 
     Usage:
@@ -215,9 +249,10 @@ class SimpleEmbeddedDocumentField(EmbeddedDocumentField):
                 's': StringField(),
             })
     """
-    embedded_document_class = None
+    embedded_document_class: Any = None
 
-    def __init__(self, fields, *, auto_create=True, **kwargs):
+    def __init__(self, fields: dict, *,
+                 auto_create: bool = True, **kwargs: Any) -> None:
         if not isinstance(fields, dict):
             raise TypeError("First argument must be a dict, not {}"
                             "".format(type(fields)))
@@ -228,7 +263,7 @@ class SimpleEmbeddedDocumentField(EmbeddedDocumentField):
 
         super().__init__(None, auto_create=auto_create, **kwargs)
 
-    def contribute_to_class(self, document_class, name):
+    def contribute_to_class(self, document_class: Any, name: str) -> None:
         super().contribute_to_class(document_class, name)
 
         self.embedded_document_class = type(

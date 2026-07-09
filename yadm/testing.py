@@ -1,7 +1,10 @@
 """ YADM with faker integration.
 """
+from __future__ import annotations
+
 from collections import Counter
 from types import GeneratorType
+from typing import Any, Optional, Type, TypeVar
 
 import pymongo
 from faker import Faker
@@ -9,19 +12,21 @@ from faker import Faker
 from yadm.documents import BaseDocument, Document, EmbeddedDocument
 from yadm.markers import AttributeNotSet
 
+TB = TypeVar('TB', bound=BaseDocument)
+
 
 DEFAULT_DEPTH = 4  # <=450
 
 
-def create_fake(__document_class__,
-                __db__=None,
-                __faker__=None,
+def create_fake(__document_class__: Type[TB],
+                __db__: Any = None,
+                __faker__: Any = None,
                 *,
-                __parent__=None,
-                __name__=None,
-                __depth__=DEFAULT_DEPTH,
-                __write_concern__=pymongo.WriteConcern(w='majority'),
-                **values):
+                __parent__: Any = None,
+                __name__: Optional[str] = None,
+                __depth__: int = DEFAULT_DEPTH,
+                __write_concern__: Any = pymongo.WriteConcern(w='majority'),
+                **values: Any) -> TB:
     """ Create document with fake data.
 
     :param yadm.documents.BaseDocument __document_class__: document class
@@ -39,16 +44,16 @@ def create_fake(__document_class__,
     if not issubclass(__document_class__, BaseDocument):  # pragma: no cover
         raise TypeError("only BaseDocument subclasses is allowed")
 
-    create_fake.counter[__document_class__] += 1
+    create_fake.counter[__document_class__] += 1  # type: ignore[attr-defined]
 
     if __depth__ < 0:
-        return AttributeNotSet
+        return AttributeNotSet  # type: ignore[return-value]
 
     if __faker__ is None:
-        create_fake.counter['__without_faker__'] += 1
+        create_fake.counter['__without_faker__'] += 1  # type: ignore[attr-defined]
         __faker__ = Faker()
 
-    document = __document_class__()
+    document: Any = __document_class__()
 
     if isinstance(document, Document):
         document.__db__ = __db__
@@ -105,4 +110,4 @@ def create_fake(__document_class__,
     return document
 
 
-create_fake.counter = Counter()
+create_fake.counter = Counter()  # type: ignore[attr-defined]

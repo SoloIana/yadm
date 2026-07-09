@@ -1,14 +1,33 @@
+from __future__ import annotations
+
+import warnings
 from collections import OrderedDict
 from enum import Enum
-from typing import Union, List, Tuple
-import warnings
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generic,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Type,
+    Union,
+    overload,
+)
 
 from pymongo import read_preferences, ReturnDocument
+from pymongo.results import DeleteResult, UpdateResult
 from bson import ObjectId
 
+from yadm.common import Criteria, Hint, Projection, Sort, SortItem, TDoc
 from yadm.join import Join
 from yadm.cache import StackCache
 from yadm.serialize import from_mongo, to_mongo, LOOKUPS_KEY
+
+if TYPE_CHECKING:
+    from typing import Self
 
 CACHE_SIZE = 100
 
@@ -26,13 +45,20 @@ class NotFoundError(Exception):
     pass
 
 
-class BaseQuerySet:
+class BaseQuerySet(Generic[TDoc]):
     """ Query builder.
     """
-    def __init__(self, db, document_class, *,
-                 cache=None, criteria=None, projection=None, hint=None, sort=None,
-                 comment=None, lookup=None, slice=None,
-                 batch_size=None, collection_params=None):
+    def __init__(self, db: Any, document_class: Type[TDoc], *,
+                 cache: Any = None,
+                 criteria: Optional[Criteria] = None,
+                 projection: Optional[Projection] = None,
+                 hint: Optional[Hint] = None,
+                 sort: Optional[Sort] = None,
+                 comment: Optional[str] = None,
+                 lookup: Any = None,
+                 slice: Optional[slice] = None,
+                 batch_size: Optional[int] = None,
+                 collection_params: Optional[dict] = None):
 
         self._db = db
         self._document_class = document_class
@@ -47,15 +73,23 @@ class BaseQuerySet:
         self._batch_size = batch_size
         self._collection_params = collection_params or {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return ("{s.__class__.__name__}({s._document_class.__collection__}"
                 " {s._criteria!r} {s._projection!r} {s._hint!r} {s._comment!r}"
                 " {s._sort!r})".format(s=self))
 
-    def __call__(self, criteria=None, projection=None):  # pragma: no cover
+    def __call__(self,
+                 criteria: Optional[Criteria] = None,
+                 projection: Optional[Projection] = None,
+                 ) -> Self:  # pragma: no cover
         return self.find(criteria, projection)
 
-    def __getitem__(self, item):
+    @overload
+    def __getitem__(self, item: int) -> Any: ...
+    @overload
+    def __getitem__(self, item: slice) -> Self: ...
+
+    def __getitem__(self, item: Union[int, slice]) -> Any:
         if isinstance(item, slice):
             if item.step is not None:
                 n = self.__class__.__name__
@@ -74,7 +108,8 @@ class BaseQuerySet:
             raise TypeError("Only slice or int accepted, but {}"
                             "".format(item.__class__))
 
-    def _from_mongo_one(self, data, *, projection=None):
+    def _from_mongo_one(self, data: Any, *,
+                        projection: Optional[Projection] = None) -> Any:
         """ Create document from raw data.
         """
         projection = projection or self._projection
@@ -82,7 +117,7 @@ class BaseQuerySet:
         if data is None:  # pragma: no cover
             return None
         elif not projection:
-            not_loaded = frozenset()
+            not_loaded: frozenset = frozenset()
         else:
             include = [f for f, v in projection.items() if v]
             exclude = {f for f, v in projection.items() if not v}
@@ -96,7 +131,7 @@ class BaseQuerySet:
                     if field_name not in include and field_name != '_id':
                         exclude.add(field_name)
 
-            not_loaded = exclude
+            not_loaded = frozenset(exclude)
 
         doc = from_mongo(self._document_class, data, not_loaded)
         doc.__db__ = self._db
@@ -104,14 +139,14 @@ class BaseQuerySet:
         return doc
 
     @property
-    def _collection(self):  # noqa
+    def _collection(self) -> Any:  # noqa
         """ pymongo collection.
         """
         return self._db._get_collection(self._document_class,
                                         params=self._collection_params)
 
     @property
-    def _cursor(self):
+    def _cursor(self) -> Any:
         """ Raw cursor with parameters from queryset.
         """
         if not self._lookup:
@@ -142,8 +177,9 @@ class BaseQuerySet:
             )
 
     @staticmethod
-    def _get_cursor_find(collection, criteria, projection,
-                         hint, comment, sort, slice, batch_size):
+    def _get_cursor_find(collection: Any, criteria: Any, projection: Any,
+                         hint: Any, comment: Any, sort: Any, slice: Any,
+                         batch_size: Any) -> Any:
         cursor = collection.find(criteria, projection)
 
         if hint is not None:
@@ -168,8 +204,10 @@ class BaseQuerySet:
         return cursor
 
     @staticmethod
-    def _get_cursor_aggregation(collection, criteria, projection, comment,
-                                sort, lookup, slice, batch_size):
+    def _get_cursor_aggregation(collection: Any, criteria: Any,
+                                projection: Any, comment: Any,
+                                sort: Any, lookup: Any, slice: Any,
+                                batch_size: Any) -> Any:
         pipeline = []
 
         if criteria:
@@ -202,7 +240,7 @@ class BaseQuerySet:
         return cursor
 
     @property
-    def cache(self):
+    def cache(self) -> Any:
         """ Queryset cache object.
         """
         if self._cache is None:
@@ -210,9 +248,16 @@ class BaseQuerySet:
 
         return self._cache
 
-    def copy(self, *, cache=None, criteria=None, projection=None,
-             hint=None, comment=None, sort=None, lookup=None, slice=None,
-             batch_size=None, collection_params=None):
+    def copy(self, *, cache: Any = None,
+             criteria: Optional[Criteria] = None,
+             projection: Optional[Projection] = None,
+             hint: Optional[Hint] = None,
+             comment: Optional[str] = None,
+             sort: Optional[Sort] = None,
+             lookup: Any = None,
+             slice: Optional[slice] = None,
+             batch_size: Optional[int] = None,
+             collection_params: Optional[dict] = None) -> Self:
         """ Copy queryset with new parameters.
 
         Only keywords arguments is alowed.
@@ -232,7 +277,7 @@ class BaseQuerySet:
             collection_params=collection_params or self._collection_params,
         )
 
-    def read_preference(self, read_preference):
+    def read_preference(self, read_preference: Any) -> Self:
         """ Setup readPreference.
 
         Return new QuerySet instance.
@@ -244,7 +289,7 @@ class BaseQuerySet:
         collection_params['read_preference'] = read_preference
         return self.copy(collection_params=collection_params)
 
-    def read_primary(self, preferred=False):
+    def read_primary(self, preferred: bool = False) -> Self:
         """ Return queryset with setupd read concern for primary.
 
         If `preferred` argument is `True`, `PrimaryPreferred` is used
@@ -259,7 +304,9 @@ class BaseQuerySet:
 
         return self.copy(collection_params=collection_params)
 
-    def find(self, criteria=None, projection=None):
+    def find(self,
+             criteria: Optional[Criteria] = None,
+             projection: Optional[Projection] = None) -> Self:
         """ Return queryset copy with new criteria and projection.
 
         :param dict criteria: update queryset's criteria
@@ -290,7 +337,7 @@ class BaseQuerySet:
 
         return self.copy(criteria=criteria_new, projection=projection_new)
 
-    def fields(self, *fields):
+    def fields(self, *fields: str) -> Self:
         """ Get only setted fields.
 
         Update projection with fields.
@@ -304,40 +351,40 @@ class BaseQuerySet:
         """
         return self.find(projection=dict.fromkeys(fields, True))
 
-    def fields_all(self):
+    def fields_all(self) -> Self:
         """ Clear projection.
         """
         qs = self.copy()
         qs._projection = None
         return qs
 
-    def hint(self, index: Union[str, List[Tuple[str, int]]]) -> 'BaseQuerySet':
+    def hint(self, index: Union[str, List[SortItem]]) -> Self:
         """ Return queryset with hinting.
 
             qs = qs.hint([('field', 1)])
         """
         return self.copy(hint=index)
 
-    def comment(self, comment: str) -> 'BaseQuerySet':
+    def comment(self, comment: str) -> Self:
         """ Return queryset with commenting.
 
             qs = qs.comment('qwerty')
         """
         return self.copy(comment=comment)
 
-    def sort(self, *sort: Tuple[Tuple[str, int]]) -> 'BaseQuerySet':
+    def sort(self, *sort: SortItem) -> Self:
         """ Return queryset with sorting.
 
             qs = qs.sort(('field_1', 1), ('field_2', -1))
         """
-        sort = list(sort)
+        sort_list = list(sort)
 
         if self._sort is None:
-            return self.copy(sort=sort)
+            return self.copy(sort=sort_list)
         else:
-            return self.copy(sort=self._sort + sort)
+            return self.copy(sort=self._sort + sort_list)
 
-    def lookup(self, *fields):
+    def lookup(self, *fields: str) -> Self:
         items = set()
 
         for field_name in fields:
@@ -354,7 +401,7 @@ class BaseQuerySet:
 
         return self.copy(lookup=(self._lookup | items))
 
-    def batch_size(self, batch_size):
+    def batch_size(self, batch_size: Optional[int]) -> Self:
         """ Setup batch size to cursor for this queryset.
         """
         if batch_size is not None:
@@ -364,81 +411,93 @@ class BaseQuerySet:
             qs._batch_size = None
             return qs
 
-    def __iter__(self):
+    def _get_one(self, index: int) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def __contains__(self, document):
+    def __iter__(self) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def __bool__(self):
+    def __contains__(self, document: Any) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def find_one(self, criteria=None, projection=None, *, exc=None):
+    def __bool__(self) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def update_many(self, update, *, upsert=False):
+    def find_one(self,
+                 criteria: Union[Criteria, ObjectId, None] = None,
+                 projection: Optional[Projection] = None, *,
+                 exc: Optional[Type[BaseException]] = None) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def update_one(self, update, *, upsert=False):
+    def update_many(self, update: Criteria, *, upsert: bool = False) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def delete_one(self):
+    def update_one(self, update: Criteria, *, upsert: bool = False) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def delete_many(self):
+    def delete_one(self) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def find_one_and_update(self, update, *,
-                            return_document=ReturnDocument.BEFORE):
+    def delete_many(self) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def find_one_and_replace(self, document, *,
-                             return_document=ReturnDocument.BEFORE):
+    def find_one_and_update(self, update: Criteria, *,
+                            return_document: bool = ReturnDocument.BEFORE,
+                            ) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def find_one_and_delete(self):
+    def find_one_and_replace(self, document: TDoc, *,
+                             return_document: bool = ReturnDocument.BEFORE,
+                             ) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def count(self):  # pragma: no cover
+    def find_one_and_delete(self) -> Any:
+        raise NotImplementedError  # pragma: no cover
+
+    def count(self) -> Any:  # pragma: no cover
         warnings.warn("Use count_documents!", DeprecationWarning)
         return self.count_documents()
 
-    def count_documents(self):
+    def count_documents(self) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def distinct(self, field):
+    def distinct(self, field: str) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def ids(self):
+    def ids(self) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def join(self, *field_names):
+    def join(self, *field_names: str) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def find_in(self, comparable, field='_id', *,
-                not_found=NotFoundBehavior.SKIP):
+    def find_in(self, comparable: Iterable[Any], field: str = '_id', *,
+                not_found: Any = NotFoundBehavior.SKIP) -> Any:
         raise NotImplementedError  # pragma: no cover
 
 
-class QuerySet(BaseQuerySet):
-    def __iter__(self):
+class QuerySet(BaseQuerySet[TDoc]):
+    def __iter__(self) -> Iterator[TDoc]:
         for raw in self._cursor:
             yield self._from_mongo_one(raw)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.count_documents()
 
-    def __contains__(self, document):
+    def __contains__(self, document: Any) -> bool:
         return self.find_one(document.id) is not None
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         qs = self.copy(sort=[], projection={'_id': True})
         return qs.find_one() is not None
 
-    def _get_one(self, index):
+    def _get_one(self, index: int) -> TDoc:
         return self._from_mongo_one(self._cursor[index])
 
-    def find_one(self, criteria=None, projection=None, *, exc=None):
+    def find_one(self,
+                 criteria: Union[Criteria, ObjectId, None] = None,
+                 projection: Optional[Projection] = None, *,
+                 exc: Optional[Type[BaseException]] = None,
+                 ) -> Optional[TDoc]:
         """ Find and return only one document.
 
         :param dict criteria: update queryset's criteria
@@ -464,7 +523,8 @@ class QuerySet(BaseQuerySet):
 
         return self._from_mongo_one(data, projection=qs._projection)
 
-    def update_one(self, update, *, upsert=False):
+    def update_one(self, update: Criteria, *,
+                   upsert: bool = False) -> UpdateResult:
         """ Update a single document in queryset.
         """
         return self._collection.update_one(
@@ -473,7 +533,8 @@ class QuerySet(BaseQuerySet):
             upsert=upsert,
         )
 
-    def update_many(self, update, *, upsert=False):
+    def update_many(self, update: Criteria, *,
+                    upsert: bool = False) -> UpdateResult:
         """ Update one or more documents in queryset.
         """
         return self._collection.update_many(
@@ -482,19 +543,20 @@ class QuerySet(BaseQuerySet):
             upsert=upsert,
         )
 
-    def delete_one(self):
+    def delete_one(self) -> DeleteResult:
         """ Remove a single document in queryset.
         """
         return self._collection.delete_one(self._criteria)
 
-    def delete_many(self):
+    def delete_many(self) -> DeleteResult:
         """ Remove a single document in queryset.
         """
         return self._collection.delete_many(self._criteria)
 
-    def find_one_and_update(self, update, *,
-                            upsert=False,
-                            return_document=ReturnDocument.BEFORE):
+    def find_one_and_update(self, update: Criteria, *,
+                            upsert: bool = False,
+                            return_document: bool = ReturnDocument.BEFORE,
+                            ) -> Optional[TDoc]:
         """ Find a single document and update it.
         """
         data = self._collection.find_one_and_update(
@@ -510,8 +572,9 @@ class QuerySet(BaseQuerySet):
 
         return self._from_mongo_one(data, projection=self._projection)
 
-    def find_one_and_replace(self, document, *,
-                             return_document=ReturnDocument.BEFORE):
+    def find_one_and_replace(self, document: TDoc, *,
+                             return_document: bool = ReturnDocument.BEFORE,
+                             ) -> Optional[TDoc]:
         """ Find a single document and replace it.
         """
         data = self._collection.find_one_and_replace(
@@ -526,7 +589,7 @@ class QuerySet(BaseQuerySet):
 
         return self._from_mongo_one(data, projection=self._projection)
 
-    def find_one_and_delete(self):
+    def find_one_and_delete(self) -> Optional[TDoc]:
         """ Find a single document and delete it.
         """
         data = self._collection.find_one_and_delete(
@@ -551,27 +614,27 @@ class QuerySet(BaseQuerySet):
 
         return self._collection.count_documents(self._criteria, **kwargs)
 
-    def distinct(self, field):
+    def distinct(self, field: str) -> List[Any]:
         """ Distinct query.
         """
         return self._cursor.distinct(field)
 
-    def ids(self):
+    def ids(self) -> Iterator[ObjectId]:
         """ Return all objects ids from queryset.
         """
         for raw in self.copy(projection={'_id': True})._cursor:
             yield raw['_id']
 
-    def bulk(self):
+    def bulk(self) -> Dict[ObjectId, TDoc]:
         """ Return map {id: object}.
 
         :return: **dict**
         """
         qs = self.copy()
         qs._sort = None
-        return {obj.id: obj for obj in qs}
+        return {obj.id: obj for obj in qs}  # type: ignore[misc]
 
-    def join(self, *field_names):
+    def join(self, *field_names: str) -> Join:
         """ Create `yadm.Join` object, join `field_names` and return it.
 
         :param str fields_names: fields for join
@@ -592,8 +655,9 @@ class QuerySet(BaseQuerySet):
 
         return join
 
-    def find_in(self, comparable, field='_id', *,
-                not_found=NotFoundBehavior.SKIP):
+    def find_in(self, comparable: Iterable[Any], field: str = '_id', *,
+                not_found: Any = NotFoundBehavior.SKIP,
+                ) -> Iterator[Optional[TDoc]]:
         """ Build ordered $in-query.
 
         Creates a query of the form {field: {'$in': comparable}} and
@@ -640,24 +704,26 @@ class QuerySet(BaseQuerySet):
                                         " the field '{}' equal '{}'"
                                         "".format(field, cmp_item))
 
-    def update(self, update, *, multi=True, upsert=False):  # pragma: no cover
+    def update(self, update: Criteria, *,
+               multi: bool = True, upsert: bool = False,
+               ) -> Any:  # pragma: no cover
         warnings.warn("Use update_one or update_many!", DeprecationWarning)
         if multi:
             return self.update_many(update, upsert=upsert)
         else:
             return self.update_one(update, upsert=upsert)
 
-    def remove(self, *, multi=True):  # pragma: no cover
+    def remove(self, *, multi: bool = True) -> Any:  # pragma: no cover
         warnings.warn("Use remove_one or remove_many", DeprecationWarning)
         if multi:
-            return self.remove_many()
+            return self.delete_many()
         else:
-            return self.remove_one()
+            return self.delete_one()
 
     def find_and_modify(
-            self, update=None, *, upsert=False,
-            full_response=False, new=False,
-            **kwargs):  # pragma: no cover
+            self, update: Any = None, *, upsert: bool = False,
+            full_response: bool = False, new: bool = False,
+            **kwargs: Any) -> Any:  # pragma: no cover
         warnings.warn("Use find_one_and_* functions", DeprecationWarning)
         result = self._collection.find_and_modify(
             query=self._criteria,

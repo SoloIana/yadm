@@ -21,90 +21,104 @@ This module for provide work with MongoDB database.
     for doc in qs:
         print(doc)
 """
+from __future__ import annotations
+
 import itertools
 import warnings
+from typing import Any, Iterable, Optional, Type
 
 import pymongo
+from pymongo.results import DeleteResult, InsertManyResult, InsertOneResult, UpdateResult
 from bson import ObjectId
 
+from yadm.documents import Document
 from yadm.log_items import Insert, Save, UpdateOne, DeleteOne, Reload
 from yadm.aggregation import Aggregator
-from yadm.queryset import QuerySet
+from yadm.queryset import BaseQuerySet, QuerySet
 from yadm.bulk_writer import BulkWriter, BATCH_SIZE as BULK_BATCH_SIZE
 from yadm.serialize import to_mongo, from_mongo
-from yadm.common import build_update_query
+from yadm.common import Projection, TDoc, build_update_query
 
 
 RPS = pymongo.read_preferences
 
 
 class BaseDatabase:  # pragma: no cover
-    aio = None
+    aio: Optional[bool] = None
 
-    def __init__(self, client, name, **database_params):
+    def __init__(self, client: Any, name: str, **database_params: Any) -> None:
         self.client = client
         self.name = name
         self.database_params = database_params
-        self.db = client.get_database(name, **database_params)
+        self.db: Any = client.get_database(name, **database_params)
 
-    def __repr__(self):  # pragma: no cover
+    def __repr__(self) -> str:  # pragma: no cover
         return '{}({!r})'.format(self.__class__.__name__, self.db)
 
-    def __call__(self, document_class, **params):
+    def __call__(self, document_class: Type[TDoc],
+                 **params: Any) -> BaseQuerySet[TDoc]:
         return self.get_queryset(document_class, **params)
 
-    def _get_collection(self, document_class, params=None):
+    def _get_collection(self, document_class: Any,
+                        params: Optional[dict] = None) -> Any:
         """ Return pymongo collection for document class.
         """
         return self.db.get_collection(document_class.__collection__,
                                       **(params or {}))
 
-    def insert_one(self, document, **collection_params):
+    def insert_one(self, document: Document,
+                   **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def insert_many(self, documents, **collection_params):
+    def insert_many(self, documents: Iterable[Document],
+                    **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def save(self, document, full=False, upsert=False, **collection_params):
+    def save(self, document: Document, full: bool = False,
+             upsert: bool = False, **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def update_one(self, document, *, reload=True,
-                   set=None, unset=None, inc=None,
-                   push=None, pull=None,
-                   **collection_params):
+    def update_one(self, document: Document, *, reload: bool = True,
+                   set: Optional[dict] = None,
+                   unset: Any = None,
+                   inc: Optional[dict] = None,
+                   push: Optional[dict] = None,
+                   pull: Optional[dict] = None,
+                   **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def delete_one(self, document, **collection_params):
+    def delete_one(self, document: Document,
+                   **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def reload(self, document, new_instance=False, *,
-               projection=None,
-               **collection_params):
+    def reload(self, document: Document, new_instance: bool = False, *,
+               projection: Optional[Projection] = None,
+               **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def get_queryset(self, document_class, *,
-                     projection=None,
-                     cache=None,
-                     **collection_params):
+    def get_queryset(self, document_class: Type[TDoc], *,
+                     projection: Optional[Projection] = None,
+                     cache: Any = None,
+                     **collection_params: Any) -> BaseQuerySet[TDoc]:
         raise NotImplementedError
 
-    def get_document(self, document_class, _id, *,
-                     projection=None,
-                     exc=None,
-                     read_preference=RPS.PrimaryPreferred(),
-                     **collection_params):
+    def get_document(self, document_class: Type[TDoc], _id: Any, *,
+                     projection: Optional[Projection] = None,
+                     exc: Optional[Type[BaseException]] = None,
+                     read_preference: Any = RPS.PrimaryPreferred(),
+                     **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def estimated_document_count(self, document_class,
-                                 **collection_params):
+    def estimated_document_count(self, document_class: Any,
+                                 **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def aggregate(self, document_class, *,
-                  pipeline=None, **collection_params):
+    def aggregate(self, document_class: Any, *,
+                  pipeline: Any = None, **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def bulk_write(self, document_class, *,
-                   ordered=False, **collection_params):
+    def bulk_write(self, document_class: Any, *,
+                   ordered: bool = False, **collection_params: Any) -> Any:
         raise NotImplementedError
 
 
@@ -116,7 +130,8 @@ class Database(BaseDatabase):
     """
     aio = False
 
-    def insert_one(self, document, **collection_params):
+    def insert_one(self, document: Document,
+                   **collection_params: Any) -> InsertOneResult:
         """ Insert document to database.
         """
         document.__db__ = self
@@ -129,12 +144,14 @@ class Database(BaseDatabase):
         document.__log__.append(Insert(id=result.inserted_id))
         return result
 
-    def insert_many(self, documents, *, ordered=True, **collection_params):
+    def insert_many(self, documents: Iterable[Document], *,
+                    ordered: bool = True,
+                    **collection_params: Any) -> InsertManyResult:
         """ Insert documents from iterator.
 
         Collection get from first document.
         """
-        def gen(documents):
+        def gen(documents: Iterable[Document]) -> Any:
             for document in documents:
                 yield to_mongo(document)
                 document.__log__.append(Insert())
@@ -170,7 +187,8 @@ class Database(BaseDatabase):
                 ordered=False,
             )
 
-    def save(self, document, **collection_params):
+    def save(self, document: TDoc,  # type: ignore[override]
+             **collection_params: Any) -> TDoc:
         """ Save document to database.
         """
         document.__db__ = self
@@ -189,10 +207,14 @@ class Database(BaseDatabase):
         document.__log__.append(Save(id=document.id))
         return document
 
-    def update_one(self, document, *, reload=True,
-                   set=None, unset=None, inc=None,
-                   push=None, pull=None,
-                   **collection_params):  # TODO: extend
+    def update_one(self, document: Document, *, reload: bool = True,
+                   set: Optional[dict] = None,
+                   unset: Any = None,
+                   inc: Optional[dict] = None,
+                   push: Optional[dict] = None,
+                   pull: Optional[dict] = None,
+                   **collection_params: Any,
+                   ) -> Optional[UpdateResult]:  # TODO: extend
         """ Update one document.
         """
         update_data = build_update_query(set=set, unset=unset, inc=inc,
@@ -214,7 +236,8 @@ class Database(BaseDatabase):
 
         return result
 
-    def delete_one(self, document, **collection_params):
+    def delete_one(self, document: Document,
+                   **collection_params: Any) -> DeleteResult:
         """ Remove a single document from database.
         """
         collection = self._get_collection(document.__class__, collection_params)
@@ -222,12 +245,13 @@ class Database(BaseDatabase):
         document.__log__.append(DeleteOne())
         return res
 
-    def reload(self, document, new_instance=False, *,
-               projection=None,
-               read_preference=RPS.PrimaryPreferred(),
-               **collection_params):
+    def reload(self, document: TDoc, new_instance: bool = False, *,
+               projection: Optional[Projection] = None,
+               read_preference: Any = RPS.PrimaryPreferred(),
+               **collection_params: Any) -> TDoc:
         """ Reload document.
         """
+        new: Any
         collection_params['read_preference'] = read_preference
         qs = self.get_queryset(document.__class__,
                                projection=projection,
@@ -248,11 +272,11 @@ class Database(BaseDatabase):
             document.__not_loaded__ = new.__not_loaded__
             return document
 
-    def get_document(self, document_class, _id, *,
-                     projection=None,
-                     exc=None,
-                     read_preference=RPS.PrimaryPreferred(),
-                     **collection_params):
+    def get_document(self, document_class: Type[TDoc], _id: Any, *,
+                     projection: Optional[Projection] = None,
+                     exc: Optional[Type[BaseException]] = None,
+                     read_preference: Any = RPS.PrimaryPreferred(),
+                     **collection_params: Any) -> Optional[TDoc]:
         """ Get document for it _id.
 
         Default ReadPreference is PrimaryPreferred.
@@ -281,10 +305,10 @@ class Database(BaseDatabase):
         else:
             return None
 
-    def get_queryset(self, document_class, *,
-                     projection=None,
-                     cache=None,
-                     **collection_params):
+    def get_queryset(self, document_class: Type[TDoc], *,
+                     projection: Optional[Projection] = None,
+                     cache: Any = None,
+                     **collection_params: Any) -> QuerySet[TDoc]:
         """ Return queryset for document class.
 
         This create instance of :class:`yadm.queryset.QuerySet`
@@ -298,16 +322,16 @@ class Database(BaseDatabase):
                         cache=cache,
                         collection_params=collection_params)
 
-    def estimated_document_count(self, document_class,
-                                 **collection_params):
+    def estimated_document_count(self, document_class: Any,
+                                 **collection_params: Any) -> int:
         """ Get an estimate of the number of documents in this collection.
         """
         collection = self._get_collection(document_class, collection_params)
         return collection.estimated_document_count()
 
-    def aggregate(self, document_class, *,
-                  pipeline=None,
-                  **collection_params):
+    def aggregate(self, document_class: Any, *,
+                  pipeline: Any = None,
+                  **collection_params: Any) -> Aggregator:
         """ Return aggregator for use aggregation framework.
 
         :param document_class: :class:`yadm.documents.Document`
@@ -317,21 +341,23 @@ class Database(BaseDatabase):
         return Aggregator(self, document_class, pipeline=pipeline,
                           collection_params=collection_params)
 
-    def bulk_write(self, document_class, *,
-                   ordered=False,
-                   batch_size=BULK_BATCH_SIZE,
-                   **collection_params):
+    def bulk_write(self, document_class: Any, *,
+                   ordered: bool = False,
+                   batch_size: int = BULK_BATCH_SIZE,
+                   **collection_params: Any) -> BulkWriter:
         """ Return BulkWriter for realize bulk_write from pymongo.
         """
         return BulkWriter(self, document_class,
                           ordered=ordered, batch_size=batch_size,
                           collection_params=collection_params)
 
-    def insert(self, document, **collection_params):  # pragma: no cover
+    def insert(self, document: Document,
+               **collection_params: Any) -> Document:  # pragma: no cover
         warnings.warn("Use insert_one!", DeprecationWarning)
         self.insert_one(document, **collection_params)
         return document
 
-    def remove(self, document, **collection_params):  # pragma: no cover
+    def remove(self, document: Document,
+               **collection_params: Any) -> Any:  # pragma: no cover
         warnings.warn("Use delete_one!", DeprecationWarning)
         return self.delete_one(document, **collection_params)

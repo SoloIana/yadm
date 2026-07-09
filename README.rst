@@ -231,6 +231,39 @@ Or traditional MongoDB syntax:
     ])
 
 
+----------
+Type hints
+----------
+
+YADM ships type hints (`PEP 561 <https://peps.python.org/pep-0561/>`_,
+``yadm/py.typed``), so mypy understands typical user code:
+
+.. code:: python
+
+    class User(Document):
+        __collection__ = 'users'
+        name = fields.StringField()
+
+    user.name             # str
+    db.get_queryset(User) # QuerySet[User]
+    qs.find({...}).sort(('name', 1))  # still QuerySet[User]
+    qs.find_one()         # Optional[User]
+    db.save(user)         # User
+    # aio: AioQuerySet[User], `await aqs.find_one()` -> Optional[User]
+
+Known limitations:
+
+* ``smart_null=True`` is not modeled: attribute access is still typed
+  as ``T``, not ``Optional[T]``;
+* embedded/reference targets given as dotted strings (or ``'self'``)
+  are typed as ``Any``;
+* ``ReferenceField`` instance access is typed as ``Any`` (a sync
+  database resolves the document, an aio database returns an awaitable
+  ``Reference``);
+* container fields (``ListField``, ``SetField``, ``MapField``, ...)
+  are typed by their container, item values are ``Any``.
+
+
 -------
 CHANGES
 -------

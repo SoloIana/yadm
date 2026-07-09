@@ -1,6 +1,7 @@
 import random
 
 import pytest
+import pytest_asyncio
 from bson import ObjectId
 
 from yadm import fields
@@ -102,14 +103,11 @@ async def test_save(db):
     assert doc.__db__ is db
 
 
-@pytest.fixture()
-def doc(event_loop, db):
-    async def fixture():
-        doc = Doc(b=True, i=13, l=[1, 2, 3])
-        await db.insert_one(doc)
-        return doc
-
-    return event_loop.run_until_complete(fixture())
+@pytest_asyncio.fixture()
+async def doc(db):
+    doc = Doc(b=True, i=13, l=[1, 2, 3])
+    await db.insert_one(doc)
+    return doc
 
 
 @pytest.mark.parametrize('kwargs, result', [

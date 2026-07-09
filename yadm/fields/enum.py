@@ -1,27 +1,37 @@
-from yadm.fields.base import pass_null
+from __future__ import annotations
+
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Optional, Type, TypeVar
+
+from yadm.fields.base import DocumentLike, pass_null
 from yadm.fields.simple import SimpleField
 from yadm.markers import AttributeNotSet
 
+if TYPE_CHECKING:
+    from typing import Self
 
-class EnumField(SimpleField):
+E = TypeVar('E', bound=Enum)
+
+
+class EnumField(SimpleField[E]):
     """ Field for enum.Enum .
     """
-    def __init__(self, enum, **kwargs):
+    def __init__(self, enum: Type[E], **kwargs: Any) -> None:
         self.type = enum
         super().__init__(**kwargs)
 
-    def copy(self):
+    def copy(self) -> Self:
         return self.__class__(self.type,
                               smart_null=self.smart_null,
                               default=self.default)
 
     @pass_null
-    def to_mongo(self, document, value):
+    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
         return value.value
 
 
 class EnumStateSetError(Exception):
-    def __init__(self, current, new):
+    def __init__(self, current: Any, new: Any) -> None:
         self.current = current
         self.new = new
         self.message = ("Not allowed in rules: {} -> {}"
@@ -31,19 +41,20 @@ class EnumStateSetError(Exception):
 
 
 class EnumStateInvalidInitial(Exception):
-    def __init__(self, initial_value):
+    def __init__(self, initial_value: Any) -> None:
         self.message = ("{} is not allowed as initial value in rules "
                         "".format(initial_value))
 
         super().__init__(self.message)
 
 
-class EnumStateField(EnumField):
+class EnumStateField(EnumField[E]):
     """ Simple state machine with states are enum.Enum .
     """
-    rules = None
+    rules: Any = None
 
-    def __init__(self, enum, rules=None, start=AttributeNotSet, **kwargs):
+    def __init__(self, enum: Type[E], rules: Optional[dict] = None,
+                 start: Any = AttributeNotSet, **kwargs: Any) -> None:
         if 'default' not in kwargs:
             kwargs = {'default': start, **kwargs}
 
@@ -55,13 +66,13 @@ class EnumStateField(EnumField):
         if not self.rules:  # pragma: no cover
             raise ValueError("Rules list is empty")
 
-    def copy(self):
+    def copy(self) -> Self:
         return self.__class__(self.type, self.rules,
                               smart_null=self.smart_null,
                               default=self.default)
 
     @pass_null
-    def prepare_value(self, document, value):
+    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
         current_value = getattr(document, self.name, AttributeNotSet)
         new_value = super().prepare_value(document, value)
 

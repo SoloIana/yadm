@@ -20,8 +20,11 @@ But without resolving NotResolved raised for any actions with it
 (except __len__ and __bool__).
 
 """
+from __future__ import annotations
+
 from collections.abc import MutableSequence
 from typing import (
+    TYPE_CHECKING,
     NamedTuple,
     Any,
     Optional,
@@ -33,10 +36,13 @@ from typing import (
 
 from bson import ObjectId
 
-from yadm.documents import MetaDocument, BaseDocument, Document
+from yadm.documents import BaseDocument, Document
 from yadm.document_item import DocumentItemMixin
 from yadm.queryset import NotFoundBehavior
-from yadm.fields.base import Field
+from yadm.fields.base import DocumentLike, Field
+
+if TYPE_CHECKING:
+    from typing import Self
 
 
 class NotResolved(Exception):
@@ -48,18 +54,18 @@ class AlreadyResolved(Exception):
 
 
 class ReferencesListSetitem(NamedTuple):
-    index: int
+    index: int  # type: ignore[assignment]
     document: Document
     op: str = 'references_list_setitem'
 
 
 class ReferencesListDelitem(NamedTuple):
-    index: int
+    index: int  # type: ignore[assignment]
     op: str = 'references_list_delitem'
 
 
 class ReferencesListInsert(NamedTuple):
-    index: int
+    index: int  # type: ignore[assignment]
     document: Document
     op: str = 'references_list_insert'
 
@@ -70,7 +76,7 @@ class ReferencesListAppend(NamedTuple):
 
 
 class ReferencesListPop(NamedTuple):
-    index: int
+    index: int  # type: ignore[assignment]
     op: str = 'references_list_pop'
 
 
@@ -81,10 +87,13 @@ class ReferencesListResolve(NamedTuple):
 class ReferencesList(MutableSequence, DocumentItemMixin):
     _resolved = False
 
+    _ids: Any
+    _documents: Any
+
     def __init__(self,
-                 reference_document_class: MetaDocument,
-                 ids: Optional[List[ObjectId]] = None,
-                 field: Optional[Field] = None,
+                 reference_document_class: Any,
+                 ids: Optional[list] = None,
+                 field: Optional[Field[Any]] = None,
                  parent: Union[BaseDocument, DocumentItemMixin, None] = None):
         super().__init__()
         self._reference_document_class = reference_document_class
@@ -96,7 +105,7 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
         if not ids:
             self._resolved = True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self._resolved:
             items = ', '.join([repr(d) for d in self._documents])
         else:
@@ -113,18 +122,18 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
             items=items,
         )
 
-    def __getitem__(self, idx: int) -> Document:
+    def __getitem__(self, idx: Any) -> Any:
         self._check_resolved_and_rise()
         return self._documents[idx]
 
-    def __setitem__(self, idx: int, document: Document):
+    def __setitem__(self, idx: Any, document: Any) -> None:
         self._check_resolved_and_rise()
         self._ids[idx] = document
         self._documents[idx] = document
         self.__log__.append(ReferencesListSetitem(index=idx,
                                                   document=document))
 
-    def __delitem__(self, idx: int):
+    def __delitem__(self, idx: Any) -> None:
         self._check_resolved_and_rise()
         del self._ids[idx]
         del self._documents[idx]
@@ -140,7 +149,7 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
         self._check_resolved_and_rise()
         return iter(self._documents)
 
-    def __eq__(self, other) -> bool:  # pragma: nocover
+    def __eq__(self, other: Any) -> bool:  # pragma: nocover
         if isinstance(other, ReferencesList):
             return self._ids == other._ids
         else:
@@ -154,19 +163,19 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
     def ids(self) -> list:
         return self._ids.copy()
 
-    def insert(self, idx: int, document: Document):
+    def insert(self, idx: Any, document: Any) -> None:
         self._check_resolved_and_rise()
         self._ids.insert(idx, document.id)
         self._documents.insert(idx, document)
         self.__log__.append(ReferencesListInsert(index=idx, document=document))
 
-    def append(self, document: Document):
+    def append(self, document: Any) -> None:
         self._check_resolved_and_rise()
         self._ids.append(document.id)
         self._documents.append(document)
         self.__log__.append(ReferencesListAppend(document=document))
 
-    def pop(self, idx: int=-1) -> Document:
+    def pop(self, idx: Any = -1) -> Any:
         self._check_resolved_and_rise()
         del self._ids[idx]
         doc = self._documents.pop(idx)
@@ -182,6 +191,7 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
             raise AlreadyResolved()
 
         db = self.__db__
+        assert db is not None
         qs = db.get_queryset(self._reference_document_class)
 
         if not db.aio:
@@ -191,9 +201,10 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
             ))
             self._resolved = True
             self.__log__.append(ReferencesListResolve())
+            return None
 
         else:
-            async def resolver_coro(self) -> None:
+            async def resolver_coro(self: ReferencesList) -> None:
                 documents = []
                 async for doc in qs.find_in(self._ids):
                     documents.append(doc)
@@ -204,21 +215,21 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
 
             return resolver_coro(self)
 
-    def _check_resolved_and_rise(self):
+    def _check_resolved_and_rise(self) -> None:
         if not self._resolved:
             raise NotResolved()
 
 
-class ReferencesListField(Field):
-    def __init__(self, reference_document_class):
+class ReferencesListField(Field[ReferencesList]):
+    def __init__(self, reference_document_class: Any) -> None:
         self._reference_document_class = reference_document_class
 
-    def copy(self) -> 'ReferencesListField':  # pragma: no cover
-        return self.__class__()
+    def copy(self) -> Self:  # pragma: no cover
+        return self.__class__(self._reference_document_class)
 
     def get_if_attribute_not_set(
         self,
-        document: Document,
+        document: DocumentLike,
     ) -> ReferencesList:  # pragma: no cover
         rl = ReferencesList(
             self._reference_document_class, [],
@@ -228,7 +239,7 @@ class ReferencesListField(Field):
         setattr(document, self.name, rl)
         return rl
 
-    def get_default(self, document: Document) -> ReferencesList:
+    def get_default(self, document: DocumentLike) -> ReferencesList:
         rl = ReferencesList(
             self._reference_document_class, [],
             field=self,
@@ -239,7 +250,7 @@ class ReferencesListField(Field):
 
     def prepare_value(
         self,
-        document: Document,
+        document: DocumentLike,
         value: Union[ReferencesList, List[Document]],
     ) -> ReferencesList:
         if isinstance(value, ReferencesList):
@@ -262,7 +273,7 @@ class ReferencesListField(Field):
             raise TypeError(value)
 
     def from_mongo(self,
-                   document: Document,
+                   document: DocumentLike,
                    value: list) -> ReferencesList:
         return ReferencesList(
             self._reference_document_class, value,
@@ -271,6 +282,6 @@ class ReferencesListField(Field):
         )
 
     def to_mongo(self,
-                 document: Document,
+                 document: DocumentLike,
                  value: ReferencesList) -> List[ObjectId]:
         return value._ids

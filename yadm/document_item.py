@@ -1,17 +1,26 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
+
 from yadm.log_items import BaseLog, ChangeChild
+
+if TYPE_CHECKING:
+    from yadm.database import BaseDatabase
+    from yadm.documents import BaseDocument, Document
+    from yadm.queryset import BaseQuerySet
 
 
 class ItemLog(BaseLog):
-    def __init__(self, document_item):
+    def __init__(self, document_item: DocumentItemMixin) -> None:
         super().__init__()
         self.document_item = document_item
 
-    def append(self, log_item):
+    def append(self, log_item: Any) -> None:
         self.items.append(log_item)
 
         root = self.document_item.__document__
         if root is not None:
-            self.document_item.__document__.__log__.append(
+            root.__log__.append(
                 ChangeChild(
                     path=self.document_item.__field_name__,
                     name=self.document_item.__name__,
@@ -24,24 +33,25 @@ class DocumentItemMixin:
     """ Mixin for custom all fields values, such as EmbeddedDocument,
         yadm.fields.containers.Container.
     """
-    __parent__ = None
-    __name__ = None
-    __qs__ = None
-    __log__ = None
+    __parent__: Union[BaseDocument, DocumentItemMixin, None] = None
+    __name__: Any = None
+    # Always an ItemLog after __init__; typed Any to keep the None
+    # class-level default without Optional checks at every use site.
+    __log__: Any = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.__log__ = ItemLog(self)
         super().__init__(*args, **kwargs)
 
     @property
-    def __document__(self):
+    def __document__(self) -> Optional[Document]:
         """ Root document.
 
         .. code-block:: python
 
                 assert doc.f.l[0].__document__ is doc
         """
-        obj = self
+        obj: Any = self
 
         while getattr(obj, '__parent__', None) is not None:
             obj = obj.__parent__
@@ -52,7 +62,7 @@ class DocumentItemMixin:
             return None
 
     @property
-    def __db__(self):
+    def __db__(self) -> Optional[BaseDatabase]:
         """ Database object.
 
         .. code-block:: python
@@ -66,7 +76,7 @@ class DocumentItemMixin:
             return None  # pragma: no cover
 
     @property
-    def __qs__(self):
+    def __qs__(self) -> Optional[BaseQuerySet[Any]]:
         """ Queryset object.
         """
         document = self.__document__
@@ -76,21 +86,21 @@ class DocumentItemMixin:
             return None  # pragma: no cover
 
     @property
-    def __path__(self):
+    def __path__(self) -> Iterator[Any]:
         """ Path to root generator.
 
         .. code-block:: python
 
             assert list(doc.f.l[0].__path__) == [doc.f.l[0], doc.f.l, doc.f]
         """
-        obj = self
+        obj: Any = self
 
         while getattr(obj, '__parent__', None) is not None:
             yield obj
             obj = obj.__parent__
 
     @property
-    def __path_names__(self):
+    def __path_names__(self) -> Iterator[Any]:
         """ Path to root generator.
 
         .. code-block:: python
@@ -101,7 +111,7 @@ class DocumentItemMixin:
             yield item.__name__
 
     @property
-    def __field_name__(self):
+    def __field_name__(self) -> str:
         """ Dotted field name for MongoDB opperations, like as $set, $push and other...
 
         .. code-block:: python
@@ -110,7 +120,7 @@ class DocumentItemMixin:
         """
         return '.'.join(reversed([str(i) for i in self.__path_names__]))
 
-    def __get_value__(self, document):
+    def __get_value__(self, document: Any) -> Any:
         """ Get value from document with path to self.
         """
         obj = document
