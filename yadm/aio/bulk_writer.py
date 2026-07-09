@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, List, Optional
+from types import TracebackType
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Coroutine,
+    List,
+    Optional,
+    Type,
+)
 
 from pymongo import (
     InsertOne,
@@ -14,10 +23,17 @@ from pymongo import (
 from pymongo.results import BulkWriteResult
 
 from yadm.bulk_writer import EMPTY_RESULT, BATCH_SIZE
+from yadm.common import Criteria
 from yadm.serialize import to_mongo
 
+if TYPE_CHECKING:
+    from yadm.database import BaseDatabase
+    from yadm.documents import Document
 
-def _async_check_and_send(meth: Any) -> Any:
+
+def _async_check_and_send(
+        meth: Callable[..., None],
+) -> Callable[..., Coroutine[Any, Any, None]]:
     @functools.wraps(meth)
     async def wrapper(self: Any, *args: Any, **kwargs: Any) -> None:
         meth(self, *args, **kwargs)
@@ -28,7 +44,7 @@ def _async_check_and_send(meth: Any) -> Any:
 
 
 class AioBulkWriter:
-    def __init__(self, db: Any, document_class: Any,
+    def __init__(self, db: BaseDatabase, document_class: Type[Document],
                  ordered: bool = False,
                  collection_params: Optional[dict] = None,
                  batch_size: int = BATCH_SIZE) -> None:
@@ -44,7 +60,10 @@ class AioBulkWriter:
     async def __aenter__(self) -> AioBulkWriter:
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
         if self._batch:
             await self.send_batch()
 
@@ -60,33 +79,33 @@ class AioBulkWriter:
         return self._result
 
     @_async_check_and_send
-    def insert_one(self, document: Any) -> Any:
+    def insert_one(self, document: Document) -> None:
         self._batch.append(InsertOne(to_mongo(document)))
 
     @_async_check_and_send
-    def update_one(self, cliteria: Any, query: Any, upsert: bool = False) -> Any:
+    def update_one(self, cliteria: Criteria, query: Criteria, upsert: bool = False) -> None:
         self._batch.append(UpdateOne(cliteria, query, upsert=upsert))
 
     @_async_check_and_send
-    def update_many(self, cliteria: Any, query: Any, upsert: bool = False) -> Any:
+    def update_many(self, cliteria: Criteria, query: Criteria, upsert: bool = False) -> None:
         self._batch.append(UpdateMany(cliteria, query, upsert=upsert))
 
     @_async_check_and_send
-    def replace_one(self, cliteria: Any, document: Any, upsert: bool = False) -> Any:
+    def replace_one(self, cliteria: Criteria, document: Document, upsert: bool = False) -> None:
         self._batch.append(ReplaceOne(cliteria, to_mongo(document), upsert=upsert))
 
     @_async_check_and_send
-    def delete_one(self, cliteria: Any) -> Any:
+    def delete_one(self, cliteria: Criteria) -> None:
         self._batch.append(DeleteOne(cliteria))
 
     @_async_check_and_send
-    def delete_many(self, cliteria: Any) -> Any:
+    def delete_many(self, cliteria: Criteria) -> None:
         self._batch.append(DeleteMany(cliteria))
 
-    async def replace(self, document: Any) -> None:
+    async def replace(self, document: Document) -> None:
         await self.replace_one({'_id': document.id}, document)
 
-    async def delete(self, document: Any) -> None:
+    async def delete(self, document: Document) -> None:
         await self.delete_one({'_id': document.id})
 
 

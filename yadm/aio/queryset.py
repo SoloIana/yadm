@@ -152,7 +152,7 @@ class AioQuerySet(BaseQuerySet[TDoc]):
         raise NotImplementedError
 
     async def find_in(self, comparable: Iterable[Any], field: str = '_id', *,
-                      not_found: Any = NotFoundBehavior.SKIP,
+                      not_found: Union[NotFoundBehavior, str] = NotFoundBehavior.SKIP,
                       ) -> AsyncIterator[Optional[TDoc]]:
         not_found = NotFoundBehavior(not_found)
         hash_docs = {}

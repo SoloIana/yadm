@@ -22,6 +22,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Optional,
     Type,
     TypeVar,
@@ -29,7 +30,7 @@ from typing import (
 )
 
 from yadm.common import EnclosedDocDescriptor
-from yadm.documents import EmbeddedDocument
+from yadm.documents import EmbeddedDocument, MetaDocument
 from yadm.markers import AttributeNotSet
 from yadm.fields.base import DocumentLike, Field, pass_null
 from yadm.serialize import to_mongo, from_mongo
@@ -44,7 +45,7 @@ TEDoc = TypeVar('TEDoc', bound=EmbeddedDocument)
 
 class BaseEmbeddedDocumentField(Field[TEDoc]):
     def get_embedded_document_class(
-            self, document: Any, value: Any) -> Any:
+            self, document: Any, value: Any) -> Type[TEDoc]:
         """ Return class of embedded document for field.
         """
         raise NotImplementedError()
@@ -114,7 +115,7 @@ class EmbeddedDocumentField(BaseEmbeddedDocumentField[TEDoc]):
         self.auto_create = auto_create
 
     def get_embedded_document_class(
-            self, document: Any = None, value: Any = None) -> Any:
+            self, document: Any = None, value: Any = None) -> Type[TEDoc]:
         return self.embedded_document_class
 
     def get_if_attribute_not_set(self, document: DocumentLike) -> Any:
@@ -194,11 +195,14 @@ class TypedEmbeddedDocumentField(BaseEmbeddedDocumentField[TEDoc]):
         for select type
     :param dict types: map of type names to embedded document classes
     """
+    # both stay Any: __init__ raises if they are left None, but mypy cannot
+    # narrow None away across method bodies (get_fake does **{type_field: ...})
     type_field: Any = None
     types: Any = None
 
     def __init__(self, type_field: Optional[str] = None,
-                 types: Optional[dict] = None, **kwargs: Any) -> None:
+                 types: Optional[Dict[str, Type[EmbeddedDocument]]] = None,
+                 **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
         self.type_field = type_field or self.type_field
@@ -210,7 +214,7 @@ class TypedEmbeddedDocumentField(BaseEmbeddedDocumentField[TEDoc]):
             raise TypeError("type_field attribute is not set")
 
     def get_embedded_document_class(
-            self, document: Any, value: Any) -> Any:
+            self, document: Any, value: Any) -> Type[TEDoc]:
         type_name = value.get(self.type_field, AttributeNotSet)
         ed_class = self.types.get(type_name, None)
 
@@ -263,7 +267,7 @@ class SimpleEmbeddedDocumentField(EmbeddedDocumentField[Any]):
 
         super().__init__(None, auto_create=auto_create, **kwargs)
 
-    def contribute_to_class(self, document_class: Any, name: str) -> None:
+    def contribute_to_class(self, document_class: MetaDocument, name: str) -> None:
         super().contribute_to_class(document_class, name)
 
         self.embedded_document_class = type(

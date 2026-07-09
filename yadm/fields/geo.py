@@ -8,7 +8,7 @@ GeoJSON: http://geojson.org/geojson-spec.html
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Iterator, List, TypeVar
+from typing import TYPE_CHECKING, Any, Iterator, List, Type, TypeVar
 
 from yadm.documents import DocumentItemMixin
 from yadm.fields.base import DocumentLike, Field, pass_null
@@ -17,10 +17,10 @@ if TYPE_CHECKING:
     from faker import Faker
 
 
-TYPES: List[Any] = []
+TYPES: List[Type[Geo]] = []
 
 
-def _geo_type(type: Any) -> Any:
+def _geo_type(type: Type[TGeo]) -> Type[TGeo]:
     # class decorator for add geo types to TYPES
     TYPES.append(type)
     return type
@@ -30,6 +30,9 @@ class Geo(DocumentItemMixin):
     """ Base class for GeoJSON data.
     """
     type: Any = None
+
+
+TGeo = TypeVar('TGeo', bound=Geo)
 
 
 class GeoCoordinates(Geo):
@@ -86,13 +89,13 @@ class MultiPoint(GeoCoordinates, Sequence):
     """
     type = 'MultiPoint'
 
-    def __init__(self, points: Any) -> None:
+    def __init__(self, points: List[Point]) -> None:
         self._points = points
 
     def __len__(self) -> int:
         return len(self._points)
 
-    def __iter__(self) -> Iterator[Any]:  # pragma: no cover
+    def __iter__(self) -> Iterator[Point]:  # pragma: no cover
         return iter(self._points)
 
     def __getitem__(self, item: Any) -> Any:
@@ -111,19 +114,18 @@ class MultiPoint(GeoCoordinates, Sequence):
         return cls([Point(*c) for c in coordinates])
 
 
-TGeo = TypeVar('TGeo', bound=Geo)
-
-
 class GeoField(Field[TGeo]):
     """ Base field for GeoJSON objects.
     """
-    def __init__(self, types: Any = TYPES, **kwargs: Any) -> None:
+    def __init__(self, types: List[Type[Geo]] = TYPES, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.types = types
-        self.types_dict = {t.type: t for t in types}
+        # values are the concrete geo classes; from_mongo() lives on them,
+        # not on Geo, so the value type stays loose
+        self.types_dict: dict = {t.type: t for t in types}
 
     @pass_null
-    def to_mongo(self, document: DocumentLike, geo: Any) -> Any:
+    def to_mongo(self, document: DocumentLike, geo: GeoCoordinates) -> Any:
         return geo.to_mongo()
 
     @pass_null
@@ -169,7 +171,7 @@ class PointField(GeoOneTypeField[Point]):
     type = Point
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:  # pragma: no cover
+                 faker: Faker, depth: int) -> Point:  # pragma: no cover
         return self._get_fake_point(faker)
 
 
@@ -179,5 +181,5 @@ class MultiPointField(GeoOneTypeField[MultiPoint]):
     type = MultiPoint
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:  # pragma: no cover
+                 faker: Faker, depth: int) -> List[Point]:  # pragma: no cover
         return [self._get_fake_point(faker) for _ in range(4)]

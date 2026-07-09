@@ -43,7 +43,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
         self._context = context
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:  # pragma: no cover
+                 faker: Faker, depth: int) -> Decimal:  # pragma: no cover
         return faker.pydecimal()
 
     @staticmethod
@@ -55,7 +55,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
         return reduce(lambda cur, acc: cur * 10 + acc, digits, 0)
 
     @pass_null
-    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
+    def prepare_value(self, document: DocumentLike, value: TDecimalable) -> Any:
         """ Cast value to :class:`decimal.Decimal`.
         """
         if isinstance(value, Decimal):
@@ -66,7 +66,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
             raise TypeError(value)
 
     @pass_null
-    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
+    def to_mongo(self, document: DocumentLike, value: Decimal) -> Any:
         sign, digits, exp = value.as_tuple()
         integer = self._integer_from_digits(digits)
         return {
@@ -75,7 +75,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
         }
 
     @pass_null
-    def from_mongo(self, document: DocumentLike, value: Any) -> Any:
+    def from_mongo(self, document: DocumentLike, value: TDecimalInMongo) -> Any:
         if isinstance(value, dict):
             sign = value['i'] < 0  # False - positive, True - negative
 
@@ -102,7 +102,7 @@ class DecimalField(DefaultMixin, Field[Decimal]):
 
 class Decimal128Field(DefaultMixin, Field[Decimal128]):
     @pass_null
-    def prepare_value(self, document: DocumentLike, value: Any) -> Any:
+    def prepare_value(self, document: DocumentLike, value: TDecimal128able) -> Any:
         if isinstance(value, Decimal128):
             return value
         elif isinstance(value, (str, Decimal)):

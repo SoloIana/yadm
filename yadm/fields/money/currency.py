@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from collections import namedtuple
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterable, Union
 
 from yadm.markers import AttributeNotSet
 from yadm.fields.base import DefaultMixin, DocumentLike, Field, pass_null
@@ -197,14 +197,14 @@ DEFAULT_CURRENCIES_LIST = [
 
 
 class CurrencyStorage(dict):
-    def __init__(self, currencies: Any) -> None:
+    def __init__(self, currencies: Iterable[Currency]) -> None:
         super().__init__()
         for code, string, precision in currencies:
             currency = Currency(code, string, precision)
             self[code] = currency
             self[string] = currency
 
-    def __getitem__(self, item: Any) -> Any:
+    def __getitem__(self, item: Union[str, int, Currency]) -> Currency:
         if isinstance(item, (str, int)):
             if item in self:
                 return super().__getitem__(item)
@@ -226,7 +226,7 @@ DEFAULT_CURRENCY_STORAGE = CurrencyStorage(DEFAULT_CURRENCIES_LIST)
 class CurrencyField(DefaultMixin, Field[Currency]):
     def __init__(self, *,
                  default: Any = AttributeNotSet,
-                 currency_storage: Any = DEFAULT_CURRENCY_STORAGE) -> None:
+                 currency_storage: CurrencyStorage = DEFAULT_CURRENCY_STORAGE) -> None:
         self._currency_storage = currency_storage
 
         if default is AttributeNotSet:
@@ -239,7 +239,7 @@ class CurrencyField(DefaultMixin, Field[Currency]):
         super().__init__(default=default)
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:  # pragma: no cover
+                 faker: Faker, depth: int) -> Currency:  # pragma: no cover
         return random.choice(list(DEFAULT_CURRENCY_STORAGE.values()))
 
     @pass_null
@@ -255,9 +255,9 @@ class CurrencyField(DefaultMixin, Field[Currency]):
             raise TypeError("Only Currency or None is allowed for CurrencyField.")
 
     @pass_null
-    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
+    def to_mongo(self, document: DocumentLike, value: Currency) -> Any:
         return value.string
 
     @pass_null
-    def from_mongo(self, document: DocumentLike, value: Any) -> Any:
+    def from_mongo(self, document: DocumentLike, value: Union[str, int]) -> Any:
         return self._currency_storage[value]

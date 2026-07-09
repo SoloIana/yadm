@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import Any, Iterable, Optional, Type
+from typing import Any, Dict, Iterable, Iterator, Optional, Type, Union
 
 import pymongo
 from pymongo.results import DeleteResult, InsertManyResult, InsertOneResult, UpdateResult
@@ -10,9 +10,9 @@ from bson import ObjectId
 from yadm.documents import Document
 from yadm.log_items import Insert, Save, UpdateOne, DeleteOne, Reload
 from yadm.database import BaseDatabase
-from yadm.serialize import to_mongo, from_mongo
+from yadm.serialize import to_mongo, from_mongo, TRaw
 from yadm.bulk_writer import BATCH_SIZE as BULK_BATCH_SIZE
-from yadm.common import Projection, TDoc, build_update_query
+from yadm.common import Pipeline, Projection, ReadPref, TDoc, build_update_query
 
 from .queryset import AioQuerySet
 from .aggregation import AioAggregator
@@ -39,7 +39,7 @@ class AioDatabase(BaseDatabase):
     async def insert_many(self, documents: Iterable[Document], *,
                            ordered: bool = True,
                            **collection_params: Any) -> InsertManyResult:
-        def gen(documents: Iterable[Document]) -> Any:
+        def gen(documents: Iterable[Document]) -> Iterator[TRaw]:
             for document in documents:
                 yield to_mongo(document)
                 document.__log__.append(Insert())
@@ -95,7 +95,7 @@ class AioDatabase(BaseDatabase):
 
     async def update_one(self, document: Document, *, reload: bool = True,
                          set: Optional[dict] = None,
-                         unset: Any = None,
+                         unset: Union[Dict[str, Any], Iterable[str], None] = None,
                          inc: Optional[dict] = None,
                          push: Optional[dict] = None,
                          pull: Optional[dict] = None,
@@ -129,7 +129,7 @@ class AioDatabase(BaseDatabase):
 
     async def reload(self, document: TDoc, new_instance: bool = False, *,
                      projection: Optional[Projection] = None,
-                     read_preference: Any = RPS.PrimaryPreferred(),
+                     read_preference: ReadPref = RPS.PrimaryPreferred(),
                      **collection_params: Any) -> TDoc:
         new: Any
         collection_params['read_preference'] = read_preference
@@ -155,7 +155,7 @@ class AioDatabase(BaseDatabase):
     async def get_document(self, document_class: Type[TDoc], _id: Any, *,
                            projection: Optional[Projection] = None,
                            exc: Optional[Type[BaseException]] = None,
-                           read_preference: Any = RPS.PrimaryPreferred(),
+                           read_preference: ReadPref = RPS.PrimaryPreferred(),
                            **collection_params: Any) -> Optional[TDoc]:
         collection_params['read_preference'] = read_preference
         col = self.db.get_collection(document_class.__collection__,
@@ -193,21 +193,21 @@ class AioDatabase(BaseDatabase):
                            cache=cache,
                            collection_params=collection_params)
 
-    async def estimated_document_count(self, document_class: Any,
+    async def estimated_document_count(self, document_class: Type[Document],
                                        **collection_params: Any) -> int:
         """ Get an estimate of the number of documents in this collection.
         """
         collection = self._get_collection(document_class, collection_params)
         return await collection.estimated_document_count()
 
-    def aggregate(self, document_class: Any, *,
-                  pipeline: Any = None,
+    def aggregate(self, document_class: Type[Document], *,
+                  pipeline: Optional[Pipeline] = None,
                   **collection_params: Any) -> AioAggregator:
         return AioAggregator(self, document_class,
                              pipeline=pipeline,
                              collection_params=collection_params)
 
-    def bulk_write(self, document_class: Any, *,
+    def bulk_write(self, document_class: Type[Document], *,
                    ordered: bool = False,
                    batch_size: int = BULK_BATCH_SIZE,
                    **collection_params: Any) -> AioBulkWriter:

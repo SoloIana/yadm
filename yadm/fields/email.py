@@ -16,7 +16,7 @@ class InvalidEmail(ValueError):
 
 class EmailField(StringField):
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:
+                 faker: Faker, depth: int) -> str:
         return faker.email().lower()
 
     @pass_null

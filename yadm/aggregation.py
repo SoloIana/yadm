@@ -7,16 +7,23 @@ Mongo Aggregation Framework helper.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Type, Union, cast
+
+from yadm.common import Hint, Pipeline
 
 if TYPE_CHECKING:
     from typing import Self
 
+    from yadm.database import BaseDatabase
+    from yadm.documents import Document
+
 
 class BaseAggregator:
-    def __init__(self, db: Any, document_class: Any, *,
-                 pipeline: Any = None, hint: Any = None, comment: Any = None,
-                 collection_params: Any = None) -> None:
+    def __init__(self, db: BaseDatabase, document_class: Type[Document], *,
+                 pipeline: Optional[Pipeline] = None,
+                 hint: Optional[Hint] = None,
+                 comment: Optional[str] = None,
+                 collection_params: Optional[dict] = None) -> None:
         self._db = db
         self._document_class = document_class
         self._pipeline = [] if pipeline is None else pipeline
@@ -46,14 +53,14 @@ class BaseAggregator:
         collection = self._db._get_collection(self._document_class)
         return collection.aggregate(self._pipeline, **options)
 
-    def hint(self, hint: Any) -> Self:
+    def hint(self, hint: Hint) -> Self:
         return self.__class__(self._db, self._document_class,
                               pipeline=self._pipeline,
                               hint=hint,
                               comment=self._comment,
                               collection_params=self._collection_params)
 
-    def comment(self, comment: Any) -> Self:
+    def comment(self, comment: str) -> Self:
         return self.__class__(self._db, self._document_class,
                               pipeline=self._pipeline,
                               hint=self._hint,
@@ -65,11 +72,12 @@ class Aggregator(BaseAggregator):
     def __iter__(self) -> Iterator[Any]:
         return iter(self._cursor)
 
-    def __getitem__(self, index: Any) -> Any:
+    def __getitem__(self, index: Union[int, slice]) -> Any:
         if isinstance(index, int):
             if index > 0:
                 try:
-                    return self.skip(index).limit(1)[0]
+                    # AgOperator.__call__ preserves the runtime class
+                    return cast('Aggregator', self.skip(index).limit(1))[0]
                 except IndexError:
                     raise IndexError("index out of range: {}".format(index))
 
@@ -98,11 +106,11 @@ class Aggregator(BaseAggregator):
 
 
 class AgOperator:
-    def __init__(self, aggregate: Any, op: str) -> None:
+    def __init__(self, aggregate: BaseAggregator, op: str) -> None:
         self._aggregate = aggregate
         self._op = op if op.startswith('$') else '${}'.format(op)
 
-    def __call__(self, _value: Any = None, **kwargs: Any) -> Any:
+    def __call__(self, _value: Any = None, **kwargs: Any) -> BaseAggregator:
         if _value is not None and kwargs:
             raise ValueError()
 

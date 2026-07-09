@@ -64,18 +64,18 @@ class DatetimeField(DefaultMixin, Field[datetime]):
 
     @classmethod
     @pass_null
-    def to_mongo(cls, document: DocumentLike, value: Any) -> Any:
+    def to_mongo(cls, document: DocumentLike, value: datetime) -> Any:
         return cls._fix_timezone(value)
 
     @classmethod
     @pass_null
-    def from_mongo(cls, document: DocumentLike, value: Any) -> Any:
+    def from_mongo(cls, document: DocumentLike, value: datetime) -> Any:
         return cls._fix_timezone(value)
 
 
 class TimedeltaField(DefaultMixin, Field[timedelta]):
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:
+                 faker: Faker, depth: int) -> timedelta:
         return faker.time_delta()
 
     @classmethod
@@ -89,10 +89,10 @@ class TimedeltaField(DefaultMixin, Field[timedelta]):
 
     @classmethod
     @pass_null
-    def to_mongo(cls, document: DocumentLike, value: Any) -> Any:
+    def to_mongo(cls, document: DocumentLike, value: timedelta) -> Any:
         return value.total_seconds()
 
     @classmethod
     @pass_null
-    def from_mongo(cls, document: DocumentLike, value: Any) -> Any:
+    def from_mongo(cls, document: DocumentLike, value: float) -> Any:
         return timedelta(seconds=value)

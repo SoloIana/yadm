@@ -12,6 +12,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Tuple,
     Type,
     Union,
     overload,
@@ -21,13 +22,25 @@ from pymongo import read_preferences, ReturnDocument
 from pymongo.results import DeleteResult, UpdateResult
 from bson import ObjectId
 
-from yadm.common import Criteria, Hint, Projection, Sort, SortItem, TDoc
+from yadm.common import (
+    Criteria,
+    Hint,
+    Pipeline,
+    Projection,
+    ReadPref,
+    Sort,
+    SortItem,
+    TDoc,
+)
 from yadm.join import Join
 from yadm.cache import StackCache
-from yadm.serialize import from_mongo, to_mongo, LOOKUPS_KEY
+from yadm.serialize import from_mongo, to_mongo, LOOKUPS_KEY, TRaw
 
 if TYPE_CHECKING:
     from typing import Self
+
+    from yadm.database import BaseDatabase
+    from yadm.documents import Document
 
 CACHE_SIZE = 100
 
@@ -48,7 +61,7 @@ class NotFoundError(Exception):
 class BaseQuerySet(Generic[TDoc]):
     """ Query builder.
     """
-    def __init__(self, db: Any, document_class: Type[TDoc], *,
+    def __init__(self, db: BaseDatabase, document_class: Type[TDoc], *,
                  cache: Any = None,
                  criteria: Optional[Criteria] = None,
                  projection: Optional[Projection] = None,
@@ -108,7 +121,7 @@ class BaseQuerySet(Generic[TDoc]):
             raise TypeError("Only slice or int accepted, but {}"
                             "".format(item.__class__))
 
-    def _from_mongo_one(self, data: Any, *,
+    def _from_mongo_one(self, data: Optional[TRaw], *,
                         projection: Optional[Projection] = None) -> Any:
         """ Create document from raw data.
         """
@@ -177,9 +190,11 @@ class BaseQuerySet(Generic[TDoc]):
             )
 
     @staticmethod
-    def _get_cursor_find(collection: Any, criteria: Any, projection: Any,
-                         hint: Any, comment: Any, sort: Any, slice: Any,
-                         batch_size: Any) -> Any:
+    def _get_cursor_find(collection: Any, criteria: Criteria,
+                         projection: Optional[Projection],
+                         hint: Optional[Hint], comment: Optional[str],
+                         sort: Optional[Sort], slice: Optional[slice],
+                         batch_size: Optional[int]) -> Any:
         cursor = collection.find(criteria, projection)
 
         if hint is not None:
@@ -204,11 +219,13 @@ class BaseQuerySet(Generic[TDoc]):
         return cursor
 
     @staticmethod
-    def _get_cursor_aggregation(collection: Any, criteria: Any,
-                                projection: Any, comment: Any,
-                                sort: Any, lookup: Any, slice: Any,
-                                batch_size: Any) -> Any:
-        pipeline = []
+    def _get_cursor_aggregation(collection: Any, criteria: Criteria,
+                                projection: Optional[Projection],
+                                comment: Optional[str], sort: Optional[Sort],
+                                lookup: Iterable[Tuple[str, str]],
+                                slice: Optional[slice],
+                                batch_size: Optional[int]) -> Any:
+        pipeline: Pipeline = []
 
         if criteria:
             pipeline.append({'$match': criteria})
@@ -277,7 +294,7 @@ class BaseQuerySet(Generic[TDoc]):
             collection_params=collection_params or self._collection_params,
         )
 
-    def read_preference(self, read_preference: Any) -> Self:
+    def read_preference(self, read_preference: ReadPref) -> Self:
         """ Setup readPreference.
 
         Return new QuerySet instance.
@@ -417,7 +434,7 @@ class BaseQuerySet(Generic[TDoc]):
     def __iter__(self) -> Any:
         raise NotImplementedError  # pragma: no cover
 
-    def __contains__(self, document: Any) -> Any:
+    def __contains__(self, document: Document) -> Any:
         raise NotImplementedError  # pragma: no cover
 
     def __bool__(self) -> Any:
@@ -471,7 +488,8 @@ class BaseQuerySet(Generic[TDoc]):
         raise NotImplementedError  # pragma: no cover
 
     def find_in(self, comparable: Iterable[Any], field: str = '_id', *,
-                not_found: Any = NotFoundBehavior.SKIP) -> Any:
+                not_found: Union[NotFoundBehavior, str] = NotFoundBehavior.SKIP,
+                ) -> Any:
         raise NotImplementedError  # pragma: no cover
 
 
@@ -483,7 +501,7 @@ class QuerySet(BaseQuerySet[TDoc]):
     def __len__(self) -> int:
         return self.count_documents()
 
-    def __contains__(self, document: Any) -> bool:
+    def __contains__(self, document: Document) -> bool:
         return self.find_one(document.id) is not None
 
     def __bool__(self) -> bool:
@@ -656,7 +674,7 @@ class QuerySet(BaseQuerySet[TDoc]):
         return join
 
     def find_in(self, comparable: Iterable[Any], field: str = '_id', *,
-                not_found: Any = NotFoundBehavior.SKIP,
+                not_found: Union[NotFoundBehavior, str] = NotFoundBehavior.SKIP,
                 ) -> Iterator[Optional[TDoc]]:
         """ Build ordered $in-query.
 
@@ -706,7 +724,7 @@ class QuerySet(BaseQuerySet[TDoc]):
 
     def update(self, update: Criteria, *,
                multi: bool = True, upsert: bool = False,
-               ) -> Any:  # pragma: no cover
+               ) -> UpdateResult:  # pragma: no cover
         warnings.warn("Use update_one or update_many!", DeprecationWarning)
         if multi:
             return self.update_many(update, upsert=upsert)
@@ -721,7 +739,7 @@ class QuerySet(BaseQuerySet[TDoc]):
             return self.delete_one()
 
     def find_and_modify(
-            self, update: Any = None, *, upsert: bool = False,
+            self, update: Optional[Criteria] = None, *, upsert: bool = False,
             full_response: bool = False, new: bool = False,
             **kwargs: Any) -> Any:  # pragma: no cover
         warnings.warn("Use find_one_and_* functions", DeprecationWarning)

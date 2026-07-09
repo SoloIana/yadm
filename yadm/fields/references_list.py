@@ -28,6 +28,7 @@ from typing import (
     NamedTuple,
     Any,
     Optional,
+    Type,
     Union,
     List,
     Iterator,
@@ -87,11 +88,11 @@ class ReferencesListResolve(NamedTuple):
 class ReferencesList(MutableSequence, DocumentItemMixin):
     _resolved = False
 
-    _ids: Any
-    _documents: Any
+    _ids: List[Any]
+    _documents: List[Document]
 
     def __init__(self,
-                 reference_document_class: Any,
+                 reference_document_class: Type[Document],
                  ids: Optional[list] = None,
                  field: Optional[Field[Any]] = None,
                  parent: Union[BaseDocument, DocumentItemMixin, None] = None):
@@ -122,7 +123,7 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
             items=items,
         )
 
-    def __getitem__(self, idx: Any) -> Any:
+    def __getitem__(self, idx: Union[int, slice]) -> Any:
         self._check_resolved_and_rise()
         return self._documents[idx]
 
@@ -163,19 +164,19 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
     def ids(self) -> list:
         return self._ids.copy()
 
-    def insert(self, idx: Any, document: Any) -> None:
+    def insert(self, idx: int, document: Document) -> None:
         self._check_resolved_and_rise()
         self._ids.insert(idx, document.id)
         self._documents.insert(idx, document)
         self.__log__.append(ReferencesListInsert(index=idx, document=document))
 
-    def append(self, document: Any) -> None:
+    def append(self, document: Document) -> None:
         self._check_resolved_and_rise()
         self._ids.append(document.id)
         self._documents.append(document)
         self.__log__.append(ReferencesListAppend(document=document))
 
-    def pop(self, idx: Any = -1) -> Any:
+    def pop(self, idx: int = -1) -> Document:
         self._check_resolved_and_rise()
         del self._ids[idx]
         doc = self._documents.pop(idx)
@@ -221,7 +222,7 @@ class ReferencesList(MutableSequence, DocumentItemMixin):
 
 
 class ReferencesListField(Field[ReferencesList]):
-    def __init__(self, reference_document_class: Any) -> None:
+    def __init__(self, reference_document_class: Type[Document]) -> None:
         self._reference_document_class = reference_document_class
 
     def copy(self) -> Self:  # pragma: no cover

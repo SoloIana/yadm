@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import abc
 from collections import defaultdict
-from typing import Any, Dict, Iterator, Set
+from typing import Any, Dict, Iterator, Optional, Set, Type
 
 from bson import ObjectId
 
@@ -18,16 +18,16 @@ class Join(abc.Sequence):
         self._document_class = qs._document_class
         self._db = qs._db
 
-        self._indexes: Dict[Any, dict] = defaultdict(dict)
-        self._map_name_type: Dict[str, Any] = {}
-        self._map_type_names: Dict[Any, Set[str]] = defaultdict(set)
-        self._map_name_ids: Dict[str, Set[Any]] = defaultdict(set)
+        self._indexes: Dict[Type[Document], Dict[ObjectId, Document]] = defaultdict(dict)
+        self._map_name_type: Dict[str, Type[Document]] = {}
+        self._map_type_names: Dict[Type[Document], Set[str]] = defaultdict(set)
+        self._map_name_ids: Dict[str, Set[ObjectId]] = defaultdict(set)
 
         self._data = list(qs)
 
     # abc.Sequence method
 
-    def __iter__(self) -> Iterator[Any]:  # pragma: no cover
+    def __iter__(self) -> Iterator[Document]:  # pragma: no cover
         return iter(self._data)
 
     def __getitem__(self, idx: Any) -> Any:  # pragma: no cover
@@ -39,7 +39,7 @@ class Join(abc.Sequence):
     def __len__(self) -> int:  # pragma: no cover
         return len(self._data)
 
-    def __reversed__(self) -> Any:  # pragma: no cover
+    def __reversed__(self) -> Iterator[Document]:  # pragma: no cover
         return reversed(self._data)
 
     def index(self, item: Any) -> int:  # type: ignore[override]  # pragma: no cover
@@ -63,7 +63,7 @@ class Join(abc.Sequence):
         self._load_objects_to_indexes(*field_names)
         self._set_objects(*field_names)
 
-    def _get_field(self, field_name: str) -> Any:
+    def _get_field(self, field_name: str) -> ReferenceField[Any]:
         document_fields = self._document_class.__fields__
         if field_name not in document_fields:
             raise ValueError("field not exists: {!r}".format(field_name))
@@ -75,7 +75,7 @@ class Join(abc.Sequence):
 
         return field
 
-    def _get_joined_ids(self, field_name: str) -> Set[Any]:
+    def _get_joined_ids(self, field_name: str) -> Set[ObjectId]:
         ids = set()
         for doc in self:
             value = doc.__raw__[field_name]
@@ -128,8 +128,10 @@ class Join(abc.Sequence):
                     index = self._indexes[joined_document_class]
                     doc.__cache__[field_name] = index.get(_id, value)
 
-    def _prepare_id(self, value: Any) -> Any:
+    def _prepare_id(self, value: Any) -> Optional[ObjectId]:
         if isinstance(value, ObjectId):
             return value
         elif isinstance(value, Document):
             return value.id
+        else:
+            return None

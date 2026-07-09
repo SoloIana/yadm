@@ -14,6 +14,13 @@ from typing import (
     Union,
 )
 
+from pymongo.read_preferences import (
+    Nearest,
+    Primary,
+    PrimaryPreferred,
+    Secondary,
+    SecondaryPreferred,
+)
 from zope.dottedname.resolve import resolve
 
 if TYPE_CHECKING:
@@ -25,6 +32,9 @@ Projection = Dict[str, Any]
 SortItem = Tuple[str, int]
 Sort = List[SortItem]
 Hint = Union[str, List[SortItem]]
+Pipeline = List[Dict[str, Any]]
+ReadPref = Union[Primary, PrimaryPreferred, Secondary,
+                 SecondaryPreferred, Nearest]
 
 TDoc = TypeVar('TDoc', bound='Document')
 

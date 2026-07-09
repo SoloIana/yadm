@@ -26,10 +26,10 @@ from __future__ import annotations
 import random
 from decimal import Decimal, Context, ROUND_UP
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, Union, cast
 
 from yadm.fields.base import DefaultMixin, DocumentLike, Field, pass_null
-from .currency import DEFAULT_CURRENCY_STORAGE
+from .currency import Currency, DEFAULT_CURRENCY_STORAGE
 from yadm.markers import AttributeNotSet
 
 if TYPE_CHECKING:
@@ -107,7 +107,7 @@ class Money:
                 self._value = value.quantize(precision_decimal, self._context.rounding)
 
     @classmethod
-    def from_cents(cls, cents: int, currency: Any) -> 'Money':
+    def from_cents(cls, cents: int, currency: Union[Currency, str, int]) -> 'Money':
         """ Return new Money object from cents.
         """
         _currency = DEFAULT_CURRENCY_STORAGE[currency]
@@ -134,7 +134,7 @@ class Money:
         return self._value
 
     @property
-    def currency(self) -> Any:
+    def currency(self) -> Currency:
         return self._currency
 
     @property
@@ -236,7 +236,7 @@ class MoneyField(DefaultMixin, Field[Money]):
     """ Field to storage money values.
     """
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:  # pragma: no cover
+                 faker: Faker, depth: int) -> Money:  # pragma: no cover
         value = faker.pydecimal(left_digits=5, right_digits=2, positive=True)
         currency = random.choice(list(DEFAULT_CURRENCY_STORAGE.values()))
         return Money(value, currency)
@@ -249,7 +249,7 @@ class MoneyField(DefaultMixin, Field[Money]):
             raise TypeError("Only money is allowed for asigment to MoneyField.")
 
     @pass_null
-    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
+    def to_mongo(self, document: DocumentLike, value: Money) -> Any:
         return [value.total_cents, value.currency.code]
 
     @pass_null

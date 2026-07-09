@@ -137,7 +137,7 @@ class ObjectIdField(SimpleField[ObjectId]):
             return AttributeNotSet
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:
+                 faker: Faker, depth: int) -> ObjectId:
         return ObjectId()
 
     def copy(self) -> Self:
@@ -150,7 +150,7 @@ class BooleanField(SimpleField[bool]):
     type = bool
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:
+                 faker: Faker, depth: int) -> bool:
         return faker.pybool()
 
 
@@ -160,7 +160,7 @@ class IntegerField(SimpleField[int]):
     type = int
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:  # pragma: no cover
+                 faker: Faker, depth: int) -> int:  # pragma: no cover
         if self.choices is not None:
             return choice(list(self.choices))
         else:
@@ -173,7 +173,7 @@ class FloatField(SimpleField[float]):
     type = float
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:  # pragma: no cover
+                 faker: Faker, depth: int) -> float:  # pragma: no cover
         if self.choices is not None:
             return choice(list(self.choices))
         else:
@@ -186,7 +186,7 @@ class StringField(SimpleField[str]):
     type = str
 
     def get_fake(self, document: DocumentLike,
-                 faker: Faker, depth: int) -> Any:  # pragma: no cover
+                 faker: Faker, depth: int) -> str:  # pragma: no cover
         if self.choices is not None:
             return choice(list(self.choices))
 

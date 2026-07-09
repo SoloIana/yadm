@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import itertools
 import warnings
-from typing import Any, Iterable, Optional, Type
+from typing import Any, Dict, Iterable, Iterator, Optional, Type, Union
 
 import pymongo
 from pymongo.results import DeleteResult, InsertManyResult, InsertOneResult, UpdateResult
@@ -36,8 +36,8 @@ from yadm.log_items import Insert, Save, UpdateOne, DeleteOne, Reload
 from yadm.aggregation import Aggregator
 from yadm.queryset import BaseQuerySet, QuerySet
 from yadm.bulk_writer import BulkWriter, BATCH_SIZE as BULK_BATCH_SIZE
-from yadm.serialize import to_mongo, from_mongo
-from yadm.common import Projection, TDoc, build_update_query
+from yadm.serialize import to_mongo, from_mongo, TRaw
+from yadm.common import Pipeline, Projection, ReadPref, TDoc, build_update_query
 
 
 RPS = pymongo.read_preferences
@@ -59,7 +59,7 @@ class BaseDatabase:  # pragma: no cover
                  **params: Any) -> BaseQuerySet[TDoc]:
         return self.get_queryset(document_class, **params)
 
-    def _get_collection(self, document_class: Any,
+    def _get_collection(self, document_class: Union[Document, Type[Document]],
                         params: Optional[dict] = None) -> Any:
         """ Return pymongo collection for document class.
         """
@@ -80,7 +80,7 @@ class BaseDatabase:  # pragma: no cover
 
     def update_one(self, document: Document, *, reload: bool = True,
                    set: Optional[dict] = None,
-                   unset: Any = None,
+                   unset: Union[Dict[str, Any], Iterable[str], None] = None,
                    inc: Optional[dict] = None,
                    push: Optional[dict] = None,
                    pull: Optional[dict] = None,
@@ -105,19 +105,20 @@ class BaseDatabase:  # pragma: no cover
     def get_document(self, document_class: Type[TDoc], _id: Any, *,
                      projection: Optional[Projection] = None,
                      exc: Optional[Type[BaseException]] = None,
-                     read_preference: Any = RPS.PrimaryPreferred(),
+                     read_preference: ReadPref = RPS.PrimaryPreferred(),
                      **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def estimated_document_count(self, document_class: Any,
+    def estimated_document_count(self, document_class: Type[Document],
                                  **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def aggregate(self, document_class: Any, *,
-                  pipeline: Any = None, **collection_params: Any) -> Any:
+    def aggregate(self, document_class: Type[Document], *,
+                  pipeline: Optional[Pipeline] = None,
+                  **collection_params: Any) -> Any:
         raise NotImplementedError
 
-    def bulk_write(self, document_class: Any, *,
+    def bulk_write(self, document_class: Type[Document], *,
                    ordered: bool = False, **collection_params: Any) -> Any:
         raise NotImplementedError
 
@@ -151,7 +152,7 @@ class Database(BaseDatabase):
 
         Collection get from first document.
         """
-        def gen(documents: Iterable[Document]) -> Any:
+        def gen(documents: Iterable[Document]) -> Iterator[TRaw]:
             for document in documents:
                 yield to_mongo(document)
                 document.__log__.append(Insert())
@@ -209,7 +210,7 @@ class Database(BaseDatabase):
 
     def update_one(self, document: Document, *, reload: bool = True,
                    set: Optional[dict] = None,
-                   unset: Any = None,
+                   unset: Union[Dict[str, Any], Iterable[str], None] = None,
                    inc: Optional[dict] = None,
                    push: Optional[dict] = None,
                    pull: Optional[dict] = None,
@@ -247,7 +248,7 @@ class Database(BaseDatabase):
 
     def reload(self, document: TDoc, new_instance: bool = False, *,
                projection: Optional[Projection] = None,
-               read_preference: Any = RPS.PrimaryPreferred(),
+               read_preference: ReadPref = RPS.PrimaryPreferred(),
                **collection_params: Any) -> TDoc:
         """ Reload document.
         """
@@ -275,7 +276,7 @@ class Database(BaseDatabase):
     def get_document(self, document_class: Type[TDoc], _id: Any, *,
                      projection: Optional[Projection] = None,
                      exc: Optional[Type[BaseException]] = None,
-                     read_preference: Any = RPS.PrimaryPreferred(),
+                     read_preference: ReadPref = RPS.PrimaryPreferred(),
                      **collection_params: Any) -> Optional[TDoc]:
         """ Get document for it _id.
 
@@ -322,15 +323,15 @@ class Database(BaseDatabase):
                         cache=cache,
                         collection_params=collection_params)
 
-    def estimated_document_count(self, document_class: Any,
+    def estimated_document_count(self, document_class: Type[Document],
                                  **collection_params: Any) -> int:
         """ Get an estimate of the number of documents in this collection.
         """
         collection = self._get_collection(document_class, collection_params)
         return collection.estimated_document_count()
 
-    def aggregate(self, document_class: Any, *,
-                  pipeline: Any = None,
+    def aggregate(self, document_class: Type[Document], *,
+                  pipeline: Optional[Pipeline] = None,
                   **collection_params: Any) -> Aggregator:
         """ Return aggregator for use aggregation framework.
 
@@ -341,7 +342,7 @@ class Database(BaseDatabase):
         return Aggregator(self, document_class, pipeline=pipeline,
                           collection_params=collection_params)
 
-    def bulk_write(self, document_class: Any, *,
+    def bulk_write(self, document_class: Type[Document], *,
                    ordered: bool = False,
                    batch_size: int = BULK_BATCH_SIZE,
                    **collection_params: Any) -> BulkWriter:
@@ -358,6 +359,6 @@ class Database(BaseDatabase):
         return document
 
     def remove(self, document: Document,
-               **collection_params: Any) -> Any:  # pragma: no cover
+               **collection_params: Any) -> DeleteResult:  # pragma: no cover
         warnings.warn("Use delete_one!", DeprecationWarning)
         return self.delete_one(document, **collection_params)

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator
 
 from yadm.fields.base import DocumentLike, Field
+
+if TYPE_CHECKING:
+    from faker import Faker
 
 
 class UnmutableMap(Mapping):
@@ -28,7 +31,7 @@ class MongoMapField(Field[UnmutableMap]):
         super().__init__(smart_null=smart_null)
 
     def get_fake(self, document: DocumentLike,
-                 faker: Any, deep: Any) -> Any:  # pragma: no cover
+                 faker: Faker, deep: int) -> Any:  # pragma: no cover
         return UnmutableMap({})
 
     def prepare_value(self, document: DocumentLike, value: Any) -> Any:

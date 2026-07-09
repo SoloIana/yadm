@@ -213,7 +213,7 @@ class ReferenceField(Field[TDoc]):
             raise NotBindingToDatabase((document, self, value))
 
     @pass_null
-    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
+    def to_mongo(self, document: DocumentLike, value: Document) -> Any:
         return value.id
 
 
@@ -229,7 +229,7 @@ class Reference(ObjectId):
     def __init__(self,
                  _id: ObjectId,
                  parent: Any,
-                 document_class: Any) -> None:
+                 document_class: Type[Document]) -> None:
         super().__init__(_id)
         self.parent = parent
         self.db = parent.__db__
@@ -244,7 +244,7 @@ class Reference(ObjectId):
     def __await__(self) -> Generator[Any, None, Any]:
         return self.get().__await__()
 
-    async def get(self, force: bool = False) -> Any:
+    async def get(self, force: bool = False) -> Optional[Document]:
         if self.document is None or force:
             self.document = await self.db(self.document_class).find_one(self)
             if self.document is None:  # pragma: no cover

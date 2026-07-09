@@ -32,11 +32,13 @@ class ContainerReload(NamedTuple):
 class Container(DocumentItemMixin):
     """ Base class for containers.
     """
-    _field: Any
+    _field: ContainerField[Any]
+    # honestly Optional[Field[Any]], but list/map hooks dereference it
+    # without None guards, so Any until those grow runtime checks
     _item_field: Any
     _data: Any
 
-    def __init__(self, field: Any, parent: Any, value: Any) -> None:
+    def __init__(self, field: ContainerField[Any], parent: Any, value: Any) -> None:
         super().__init__()
         self.__name__ = field.name
         self.__parent__ = parent
@@ -108,6 +110,7 @@ class ContainerField(Field[TContainer]):
     """ Base class for container fields.
     """
     container: Type[Container] = Container
+    # see Container._item_field for why this stays Any
     item_field: Any
     auto_create: bool
 

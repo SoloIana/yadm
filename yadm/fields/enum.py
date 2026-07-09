@@ -26,7 +26,7 @@ class EnumField(SimpleField[E]):
                               default=self.default)
 
     @pass_null
-    def to_mongo(self, document: DocumentLike, value: Any) -> Any:
+    def to_mongo(self, document: DocumentLike, value: E) -> Any:
         return value.value
 
 

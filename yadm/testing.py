@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from collections import Counter
 from types import GeneratorType
-from typing import Any, Optional, Type, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, Type, TypeVar
 
 import pymongo
 from faker import Faker
 
 from yadm.documents import BaseDocument, Document, EmbeddedDocument
 from yadm.markers import AttributeNotSet
+
+if TYPE_CHECKING:
+    from yadm.database import Database
+    from yadm.fields.base import DocumentLike
 
 TB = TypeVar('TB', bound=BaseDocument)
 
@@ -19,13 +23,13 @@ DEFAULT_DEPTH = 4  # <=450
 
 
 def create_fake(__document_class__: Type[TB],
-                __db__: Any = None,
-                __faker__: Any = None,
+                __db__: Optional[Database] = None,
+                __faker__: Optional[Faker] = None,
                 *,
-                __parent__: Any = None,
+                __parent__: Optional[DocumentLike] = None,
                 __name__: Optional[str] = None,
                 __depth__: int = DEFAULT_DEPTH,
-                __write_concern__: Any = pymongo.WriteConcern(w='majority'),
+                __write_concern__: pymongo.WriteConcern = pymongo.WriteConcern(w='majority'),
                 **values: Any) -> TB:
     """ Create document with fake data.
 

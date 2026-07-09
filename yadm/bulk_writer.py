@@ -1,7 +1,17 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Callable, List, Optional, TypeVar, cast
+from types import TracebackType
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    cast,
+)
 
 from pymongo import (
     InsertOne,
@@ -13,7 +23,12 @@ from pymongo import (
 )
 from pymongo.results import BulkWriteResult
 
+from .common import Criteria
 from .serialize import to_mongo
+
+if TYPE_CHECKING:
+    from yadm.database import BaseDatabase
+    from yadm.documents import Document
 
 _F = TypeVar('_F', bound=Callable[..., Any])
 
@@ -43,7 +58,7 @@ def _check_and_send(meth: _F) -> _F:
 
 
 class BulkWriter:
-    def __init__(self, db: Any, document_class: Any,
+    def __init__(self, db: BaseDatabase, document_class: Type[Document],
                  ordered: bool = False,
                  collection_params: Optional[dict] = None,
                  batch_size: int = BATCH_SIZE) -> None:
@@ -59,7 +74,10 @@ class BulkWriter:
     def __enter__(self) -> BulkWriter:
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self,
+                 exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> None:
         if self._batch:
             self.send_batch()
 
@@ -75,33 +93,33 @@ class BulkWriter:
         return self._result
 
     @_check_and_send
-    def insert_one(self, document: Any) -> None:
+    def insert_one(self, document: Document) -> None:
         self._batch.append(InsertOne(to_mongo(document)))
 
     @_check_and_send
-    def update_one(self, cliteria: Any, query: Any, upsert: bool = False) -> None:
+    def update_one(self, cliteria: Criteria, query: Criteria, upsert: bool = False) -> None:
         self._batch.append(UpdateOne(cliteria, query, upsert=upsert))
 
     @_check_and_send
-    def update_many(self, cliteria: Any, query: Any, upsert: bool = False) -> None:
+    def update_many(self, cliteria: Criteria, query: Criteria, upsert: bool = False) -> None:
         self._batch.append(UpdateMany(cliteria, query, upsert=upsert))
 
     @_check_and_send
-    def replace_one(self, cliteria: Any, document: Any, upsert: bool = False) -> None:
+    def replace_one(self, cliteria: Criteria, document: Document, upsert: bool = False) -> None:
         self._batch.append(ReplaceOne(cliteria, to_mongo(document), upsert=upsert))
 
     @_check_and_send
-    def delete_one(self, cliteria: Any) -> None:
+    def delete_one(self, cliteria: Criteria) -> None:
         self._batch.append(DeleteOne(cliteria))
 
     @_check_and_send
-    def delete_many(self, cliteria: Any) -> None:
+    def delete_many(self, cliteria: Criteria) -> None:
         self._batch.append(DeleteMany(cliteria))
 
-    def replace(self, document: Any) -> None:
+    def replace(self, document: Document) -> None:
         self.replace_one({'_id': document.id}, document)
 
-    def delete(self, document: Any) -> None:
+    def delete(self, document: Document) -> None:
         self.delete_one({'_id': document.id})
 
 
