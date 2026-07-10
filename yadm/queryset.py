@@ -650,7 +650,7 @@ class QuerySet(BaseQuerySet[TDoc]):
         """
         qs = self.copy()
         qs._sort = None
-        return {obj.id: obj for obj in qs}  # type: ignore[misc]
+        return {obj.id: obj for obj in qs}
 
     def join(self, *field_names: str) -> Join:
         """ Create `yadm.Join` object, join `field_names` and return it.

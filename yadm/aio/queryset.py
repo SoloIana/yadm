@@ -146,7 +146,7 @@ class AioQuerySet(BaseQuerySet[TDoc]):
     async def bulk(self) -> Dict[ObjectId, TDoc]:
         qs = self.copy()
         qs._sort = None
-        return {obj.id: obj async for obj in qs}  # type: ignore[misc]
+        return {obj.id: obj async for obj in qs}
 
     async def join(self, *field_names: str) -> Any:  # pragma: no cover
         raise NotImplementedError

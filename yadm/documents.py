@@ -178,7 +178,7 @@ class Document(BaseDocument):
         return hash(self.id)
 
     @property
-    def id(self) -> Optional[ObjectId]:
+    def id(self) -> ObjectId:
         return self._id
 
     @id.setter

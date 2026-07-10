@@ -24,6 +24,10 @@ RPS = pymongo.read_preferences
 class AioDatabase(BaseDatabase):
     aio = True
 
+    def __call__(self, document_class: Type[TDoc],
+                 **params: Any) -> AioQuerySet[TDoc]:
+        return self.get_queryset(document_class, **params)
+
     async def insert_one(self, document: Document,
                          **collection_params: Any) -> InsertOneResult:
         document.__db__ = self
